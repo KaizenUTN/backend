@@ -1,0 +1,14 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: django_test
+    command: pytest --ds=config.settings.test --cov=apps --cov-report=html --cov-report=term-missing
+    volumes:
+      - .:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.test
+      - PYTHONPATH=/app
+    env_file:
+      - .env.test

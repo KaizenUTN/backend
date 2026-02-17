@@ -60,6 +60,9 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+staticfiles/
+media/
+logs/
 
 # Flask stuff:
 instance/
@@ -149,6 +152,9 @@ activemq-data/
 
 # Environments
 .env
+.env.dev
+.env.test
+.env.prod
 .envrc
 .venv
 env/
@@ -216,3 +222,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.ctl
+
+# Documentation
+docs/
