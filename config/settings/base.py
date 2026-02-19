@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -110,11 +111,46 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'KaizenUTN API',
+    'DESCRIPTION': (
+        'REST API para el sistema KaizenUTN.\n\n'
+        '## Autenticación\n'
+        'Esta API utiliza **JWT (JSON Web Tokens)** para autenticación.\n\n'
+        '### Flujo de autenticación\n'
+        '1. Registrarse con `POST /api/auth/register/` o iniciar sesión con `POST /api/auth/login/`.\n'
+        '2. Incluir el `access` token en el header `Authorization: Bearer <token>` en cada request protegido.\n'
+        '3. Cuando el `access` token expire (10 minutos), renovarlo con `POST /api/auth/refresh/` usando el `refresh` token (válido 7 días).\n'
+        '4. Al cerrar sesión, invalidar el `refresh` token con `POST /api/auth/logout/`.\n\n'
+        '## Endpoints disponibles\n'
+        '| Endpoint | Método | Auth requerida | Descripción |\n'
+        '|----------|--------|----------------|-------------|\n'
+        '| `/api/auth/register/` | POST | No | Registro de nuevo usuario |\n'
+        '| `/api/auth/login/` | POST | No | Inicio de sesión |\n'
+        '| `/api/auth/logout/` | POST | Sí | Cierre de sesión |\n'
+        '| `/api/auth/refresh/` | POST | No | Renovar access token |\n'
+        '| `/api/auth/profile/` | GET/PUT/PATCH | Sí | Ver y editar perfil |\n'
+        '| `/api/auth/change-password/` | POST | Sí | Cambiar contraseña |\n'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': False,
+        'defaultModelsExpandDepth': 2,
+        'defaultModelExpandDepth': 2,
+    },
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SORT_OPERATIONS': False,
 }
 
 #jwt settings
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
