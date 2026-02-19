@@ -32,14 +32,10 @@ else:
         }
     }
 
+
 # CORS para desarrollo
-try:
-    import corsheaders
-    INSTALLED_APPS = ['corsheaders'] + INSTALLED_APPS
-    MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
-    CORS_ALLOW_ALL_ORIGINS = True
-except ImportError:
-    pass
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # Email backend para desarrollo (mostrar en consola)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

@@ -38,17 +38,12 @@ DATABASES = {
     }
 }
 
+
 # CORS Configuration (restrictivo en producción)
-try:
-    import corsheaders
-    INSTALLED_APPS = ['corsheaders'] + INSTALLED_APPS
-    MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
-    
-    # Configurar origins permitidos desde variable de entorno
-    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
-    CORS_ALLOW_CREDENTIALS = True
-except ImportError:
-    pass
+# Configurar origins permitidos desde variable de entorno
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
+CORS_ALLOW_CREDENTIALS = True
+
 
 # Static files con WhiteNoise
 try:
