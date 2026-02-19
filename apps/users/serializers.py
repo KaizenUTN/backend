@@ -12,7 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+        fields = ['id', 'email', 'first_name', 'last_name',
                   'full_name', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active']
 
@@ -72,7 +72,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 
+        fields = ['email', 'first_name', 'last_name',
                   'password', 'password_confirm']
         extra_kwargs = {
             'first_name': {'required': True},
@@ -93,17 +93,19 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
         return value
     
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError(
-                'A user with this username already exists.'
-            )
-        return value
-    
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
-        
+
+        # Genera un username único a partir del email (no expuesto en la API)
+        base = validated_data.get('email', '').split('@')[0]
+        username = base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base}{counter}"
+            counter += 1
+        validated_data['username'] = username
+
         user = User.objects.create(**validated_data)
         user.set_password(password)
         user.save()

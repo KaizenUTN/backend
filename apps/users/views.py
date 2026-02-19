@@ -85,7 +85,6 @@ _message_response = inline_serializer(
                         'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                         'user': {
                             'id': 1,
-                            'username': 'johndoe',
                             'email': 'john@example.com',
                             'first_name': 'John',
                             'last_name': 'Doe',
@@ -153,14 +152,13 @@ def login_view(request):
         '**Retorna** un par de tokens JWT (`access` + `refresh`) junto con los datos '
         'del usuario recién creado, permitiendo un inicio de sesión inmediato tras el registro.\n\n'
         '**Validaciones aplicadas:**\n'
-        '- `username` debe ser único en el sistema.\n'
         '- `email` debe ser único y tener formato válido.\n'
         '- `first_name` y `last_name` son obligatorios.\n'
         '- `password` debe cumplir las políticas de Django: mínimo 8 caracteres, '
         'no puede ser completamente numérica, no puede ser demasiado común.\n'
         '- `password` y `password_confirm` deben coincidir.\n\n'
         '**Errores comunes:**\n'
-        '- `400` — El email o username ya están en uso.\n'
+        '- `400` — El email ya está en uso.\n'
         '- `400` — Las contraseñas no coinciden.\n'
         '- `400` — La contraseña no cumple los requisitos de seguridad.'
     ),
@@ -177,7 +175,6 @@ def login_view(request):
                         'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                         'user': {
                             'id': 2,
-                            'username': 'janedoe',
                             'email': 'jane@example.com',
                             'first_name': 'Jane',
                             'last_name': 'Doe',
@@ -211,7 +208,6 @@ def login_view(request):
         OpenApiExample(
             name='Ejemplo de registro',
             value={
-                'username': 'janedoe',
                 'email': 'jane@example.com',
                 'first_name': 'Jane',
                 'last_name': 'Doe',
@@ -229,7 +225,6 @@ def register_view(request):
     User registration endpoint
     POST /api/auth/register/
     Body: {
-        "username": "johndoe",
         "email": "john@example.com",
         "first_name": "John",
         "last_name": "Doe",
@@ -372,7 +367,6 @@ def logout_view(request):
                     name='Perfil del usuario',
                     value={
                         'id': 1,
-                        'username': 'johndoe',
                         'email': 'john@example.com',
                         'first_name': 'John',
                         'last_name': 'Doe',
@@ -399,15 +393,14 @@ def logout_view(request):
         'Aunque se envíe en el body, será ignorado y se conservará el email actual.\n\n'
         'Con `PUT` todos los campos son requeridos (excepto email). '
         'Para actualizaciones parciales usar `PATCH`.\n\n'
-        '**Campos actualizables:** `username`, `first_name`, `last_name`\n\n'
+        '**Campos actualizables:** `first_name`, `last_name`\n\n'
         '**Errores comunes:**\n'
-        '- `400` — Datos de validación inválidos (e.g. username ya en uso).\n'
+        '- `400` — Datos de validación inválidos.\n'
         '- `401` — No autenticado o token expirado.'
     ),
     request=inline_serializer(
         name='ProfileUpdateRequest',
         fields={
-            'username': drf_serializers.CharField(help_text='Nombre de usuario único.'),
             'first_name': drf_serializers.CharField(help_text='Nombre del usuario.'),
             'last_name': drf_serializers.CharField(help_text='Apellido del usuario.'),
         }
@@ -423,7 +416,7 @@ def logout_view(request):
     examples=[
         OpenApiExample(
             name='Actualización completa',
-            value={'username': 'john_updated', 'first_name': 'John', 'last_name': 'Smith'},
+            value={'first_name': 'John', 'last_name': 'Smith'},
             request_only=True,
         )
     ]
@@ -437,7 +430,7 @@ def logout_view(request):
         'de enviar todos los campos.\n\n'
         '**Requiere autenticación:** Header `Authorization: Bearer <access_token>`\n\n'
         '> ℹ️ **Nota:** El campo `email` no puede modificarse a través de este endpoint.\n\n'
-        '**Campos actualizables:** `username`, `first_name`, `last_name`\n\n'
+        '**Campos actualizables:** `first_name`, `last_name`\n\n'
         '**Errores comunes:**\n'
         '- `400` — Datos de validación inválidos.\n'
         '- `401` — No autenticado o token expirado.'
@@ -445,9 +438,6 @@ def logout_view(request):
     request=inline_serializer(
         name='ProfilePatchRequest',
         fields={
-            'username': drf_serializers.CharField(
-                required=False, help_text='Nombre de usuario único (opcional).'
-            ),
             'first_name': drf_serializers.CharField(
                 required=False, help_text='Nombre del usuario (opcional).'
             ),
@@ -479,7 +469,7 @@ def profile_view(request):
     Get or update user profile
     GET /api/auth/profile/ - Returns current user data
     PUT/PATCH /api/auth/profile/ - Updates current user data
-    Body for update: {"first_name": "John", "last_name": "Doe", "username": "johndoe"}
+    Body for update: {"first_name": "John", "last_name": "Doe"}
     """
     user = request.user
     

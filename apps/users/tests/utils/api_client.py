@@ -95,12 +95,11 @@ class APIClient(DRFAPIClient):
         
         return response
     
-    def register_user(self, username, email, password, first_name='Test', last_name='User'):
+    def register_user(self, email, password, first_name='Test', last_name='User'):
         """
         Register user via API and set authentication token.
         
         Args:
-            username: Username
             email: Email address
             password: Password
             first_name: First name (default: 'Test')
@@ -110,7 +109,7 @@ class APIClient(DRFAPIClient):
             Response: Registration response
         
         Usage:
-            response = client.register_user('newuser', 'new@test.com', 'Pass123!')
+            response = client.register_user('new@test.com', 'Pass123!')
             if response.status_code == 201:
                 # Client is now authenticated
                 profile = client.get('/api/auth/profile/')
@@ -118,7 +117,6 @@ class APIClient(DRFAPIClient):
         response = self.post(
             '/api/auth/register/',
             {
-                'username': username,
                 'email': email,
                 'password': password,
                 'password_confirm': password,

@@ -225,3 +225,6 @@ __marimo__/
 
 # Documentation
 docs/
+
+# Postman collections (local testing only — not committed to the repo)
+postman/

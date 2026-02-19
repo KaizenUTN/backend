@@ -59,7 +59,6 @@ class TestLoginEndpoint:
         """Test that login returns user data."""
         user = UserFactory(
             email='test@example.com',
-            username='testuser',
             first_name='Test',
             last_name='User'
         )
@@ -76,7 +75,6 @@ class TestLoginEndpoint:
         
         assert user_data['id'] == user.id
         assert user_data['email'] == 'test@example.com'
-        assert user_data['username'] == 'testuser'
         assert user_data['first_name'] == 'Test'
         assert user_data['last_name'] == 'User'
         assert user_data['full_name'] == 'Test User'

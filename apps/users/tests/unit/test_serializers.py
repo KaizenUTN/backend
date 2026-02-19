@@ -31,7 +31,6 @@ class TestUserSerializer:
     def test_serialize_user(self):
         """Test serializing a user instance."""
         user = UserFactory(
-            username='testuser',
             email='test@example.com',
             first_name='Test',
             last_name='User'
@@ -41,7 +40,6 @@ class TestUserSerializer:
         data = serializer.data
         
         assert data['id'] == user.id
-        assert data['username'] == 'testuser'
         assert data['email'] == 'test@example.com'
         assert data['first_name'] == 'Test'
         assert data['last_name'] == 'User'
@@ -151,7 +149,6 @@ class TestRegisterSerializer:
     def test_valid_registration(self):
         """Test registration with valid data."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -166,7 +163,6 @@ class TestRegisterSerializer:
     def test_create_user_from_valid_data(self):
         """Test creating user from serializer."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -178,16 +174,17 @@ class TestRegisterSerializer:
         assert serializer.is_valid()
         
         user = serializer.save()
-        assert user.username == 'newuser'
         assert user.email == 'new@example.com'
         assert user.check_password('SecurePassword123!')
         assert user.is_active is True
+        # Username is auto-generated from email prefix
+        assert user.username is not None
+        assert 'new' in user.username
     
     @pytest.mark.django_db
     def test_registration_password_mismatch(self):
         """Test registration with mismatched passwords."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -205,7 +202,6 @@ class TestRegisterSerializer:
         UserFactory(email='existing@example.com')
         
         data = {
-            'username': 'newuser',
             'email': 'existing@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -219,27 +215,32 @@ class TestRegisterSerializer:
     
     @pytest.mark.django_db
     def test_registration_duplicate_username(self):
-        """Test registration with existing username."""
-        UserFactory(username='existinguser')
-        
+        """Test that when two users share the same email prefix, username collision is resolved."""
+        User.objects.create_user(
+            username='newuser',
+            email='other@example.com',
+            password='pass',
+            first_name='Other',
+            last_name='User'
+        )
+
         data = {
-            'username': 'existinguser',
-            'email': 'new@example.com',
+            'email': 'newuser@example.com',
             'first_name': 'New',
             'last_name': 'User',
             'password': 'SecurePassword123!',
             'password_confirm': 'SecurePassword123!'
         }
-        
         serializer = RegisterSerializer(data=data)
-        assert not serializer.is_valid()
-        assert 'username' in serializer.errors
+        assert serializer.is_valid(), serializer.errors
+        user = serializer.save()
+        # Collision resolved: username becomes 'newuser1'
+        assert user.username == 'newuser1'
     
     @pytest.mark.django_db
     def test_registration_weak_password(self):
         """Test registration with weak password."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -255,7 +256,6 @@ class TestRegisterSerializer:
     def test_registration_missing_required_fields(self):
         """Test registration with missing required fields."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com'
         }
         
