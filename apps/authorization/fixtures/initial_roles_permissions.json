@@ -1,0 +1,122 @@
+[
+  {
+    "model": "authorization.permission",
+    "pk": 1,
+    "fields": {
+      "code": "conciliacion.run",
+      "description": "Ejecutar el proceso de conciliación automática"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 2,
+    "fields": {
+      "code": "conciliacion.view",
+      "description": "Ver resultados y estado de conciliaciones"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 3,
+    "fields": {
+      "code": "conciliacion.export",
+      "description": "Exportar reportes de conciliación"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 4,
+    "fields": {
+      "code": "usuarios.view",
+      "description": "Ver listado de usuarios del sistema"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 5,
+    "fields": {
+      "code": "usuarios.create",
+      "description": "Crear nuevos usuarios"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 6,
+    "fields": {
+      "code": "usuarios.edit",
+      "description": "Editar datos de usuarios existentes"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 7,
+    "fields": {
+      "code": "usuarios.delete",
+      "description": "Eliminar usuarios del sistema"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 8,
+    "fields": {
+      "code": "reportes.view",
+      "description": "Ver reportes del sistema"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 9,
+    "fields": {
+      "code": "reportes.export",
+      "description": "Exportar reportes en distintos formatos"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 10,
+    "fields": {
+      "code": "dashboard.view",
+      "description": "Ver el panel de métricas principal"
+    }
+  },
+  {
+    "model": "authorization.permission",
+    "pk": 11,
+    "fields": {
+      "code": "admin.full",
+      "description": "Acceso completo al panel de administración"
+    }
+  },
+  {
+    "model": "authorization.role",
+    "pk": 1,
+    "fields": {
+      "name": "Analista",
+      "permissions": [1, 2, 8, 10]
+    }
+  },
+  {
+    "model": "authorization.role",
+    "pk": 2,
+    "fields": {
+      "name": "Supervisor",
+      "permissions": [1, 2, 3, 8, 9, 10]
+    }
+  },
+  {
+    "model": "authorization.role",
+    "pk": 3,
+    "fields": {
+      "name": "Administrador",
+      "permissions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    }
+  },
+  {
+    "model": "authorization.role",
+    "pk": 4,
+    "fields": {
+      "name": "Solo Lectura",
+      "permissions": [2, 8, 10]
+    }
+  }
+]

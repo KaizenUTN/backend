@@ -10,7 +10,8 @@ Tests cover:
 """
 
 import pytest
-from django.contrib.auth import get_user_model
+from typing import Any, cast
+from apps.users.models import User
 from apps.users.serializers import (
     UserSerializer,
     LoginSerializer,
@@ -18,8 +19,6 @@ from apps.users.serializers import (
     ChangePasswordSerializer
 )
 from apps.users.tests.factories.user_factory import UserFactory
-
-User = get_user_model()
 
 pytestmark = pytest.mark.unit
 
@@ -31,17 +30,15 @@ class TestUserSerializer:
     def test_serialize_user(self):
         """Test serializing a user instance."""
         user = UserFactory(
-            username='testuser',
             email='test@example.com',
             first_name='Test',
             last_name='User'
         )
         
         serializer = UserSerializer(user)
-        data = serializer.data
+        data = dict(serializer.data)
         
         assert data['id'] == user.id
-        assert data['username'] == 'testuser'
         assert data['email'] == 'test@example.com'
         assert data['first_name'] == 'Test'
         assert data['last_name'] == 'User'
@@ -85,7 +82,7 @@ class TestLoginSerializer:
         
         serializer = LoginSerializer(data=data)
         assert serializer.is_valid()
-        assert serializer.validated_data['user'] == user
+        assert cast(dict, serializer.validated_data)['user'] == user
     
     @pytest.mark.django_db
     def test_login_with_wrong_password(self):
@@ -151,7 +148,6 @@ class TestRegisterSerializer:
     def test_valid_registration(self):
         """Test registration with valid data."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -166,7 +162,6 @@ class TestRegisterSerializer:
     def test_create_user_from_valid_data(self):
         """Test creating user from serializer."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -177,17 +172,56 @@ class TestRegisterSerializer:
         serializer = RegisterSerializer(data=data)
         assert serializer.is_valid()
         
-        user = serializer.save()
-        assert user.username == 'newuser'
+        user = cast(User, serializer.save())
         assert user.email == 'new@example.com'
         assert user.check_password('SecurePassword123!')
         assert user.is_active is True
-    
+        # Username is auto-generated from email prefix
+        assert user.username is not None
+        assert 'new' in user.username
+
+    @pytest.mark.django_db
+    def test_create_user_assigns_default_role(self):
+        """Test that registration assigns the 'Operador' role when it exists."""
+        from apps.authorization.models import Role, Permission
+        perm = Permission.objects.create(code='dashboard.view', description='Ver dashboard')
+        role = Role.objects.create(name='Operador')
+        role.permissions.set([perm])
+
+        data = {
+            'email': 'new@example.com',
+            'first_name': 'New',
+            'last_name': 'User',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert serializer.is_valid()
+        user = cast(User, serializer.save())
+
+        assert user.role is not None
+        assert user.role.name == 'Operador'
+
+    @pytest.mark.django_db
+    def test_create_user_no_role_when_role_missing(self):
+        """Test that user is created without role when 'Operador' role doesn't exist."""
+        data = {
+            'email': 'new@example.com',
+            'first_name': 'New',
+            'last_name': 'User',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert serializer.is_valid()
+        user = cast(User, serializer.save())
+
+        assert user.role is None
+
     @pytest.mark.django_db
     def test_registration_password_mismatch(self):
         """Test registration with mismatched passwords."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -205,7 +239,6 @@ class TestRegisterSerializer:
         UserFactory(email='existing@example.com')
         
         data = {
-            'username': 'newuser',
             'email': 'existing@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -219,32 +252,37 @@ class TestRegisterSerializer:
     
     @pytest.mark.django_db
     def test_registration_duplicate_username(self):
-        """Test registration with existing username."""
-        UserFactory(username='existinguser')
-        
+        """Test that when two users share the same email prefix, username collision is resolved."""
+        User.objects.create_user(
+            username='newuser',
+            email='other@example.com',
+            password='pass',  # noqa: S106  # NOSONAR
+            first_name='Other',
+            last_name='User'
+        )
+
         data = {
-            'username': 'existinguser',
-            'email': 'new@example.com',
+            'email': 'newuser@example.com',
             'first_name': 'New',
             'last_name': 'User',
             'password': 'SecurePassword123!',
             'password_confirm': 'SecurePassword123!'
         }
-        
         serializer = RegisterSerializer(data=data)
-        assert not serializer.is_valid()
-        assert 'username' in serializer.errors
+        assert serializer.is_valid(), serializer.errors
+        user = cast(User, serializer.save())
+        # Collision resolved: username becomes 'newuser1'
+        assert user.username == 'newuser1'
     
     @pytest.mark.django_db
     def test_registration_weak_password(self):
         """Test registration with weak password."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
-            'password': '123',  # Too weak
-            'password_confirm': '123'
+            'password': '123',  # Too weak  # noqa: S106  # NOSONAR
+            'password_confirm': '123'  # noqa: S106  # NOSONAR
         }
         
         serializer = RegisterSerializer(data=data)
@@ -255,7 +293,6 @@ class TestRegisterSerializer:
     def test_registration_missing_required_fields(self):
         """Test registration with missing required fields."""
         data = {
-            'username': 'newuser',
             'email': 'new@example.com'
         }
         
@@ -280,7 +317,7 @@ class TestChangePasswordSerializer:
         
         # Create a mock request with user
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -302,7 +339,7 @@ class TestChangePasswordSerializer:
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -325,7 +362,7 @@ class TestChangePasswordSerializer:
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -343,12 +380,12 @@ class TestChangePasswordSerializer:
         """Test password change with weak new password."""
         data = {
             'old_password': 'TestPassword123!',
-            'new_password': '123',  # Too weak
-            'new_password_confirm': '123'
+            'new_password': '123',  # Too weak  # noqa: S106  # NOSONAR
+            'new_password_confirm': '123'  # noqa: S106  # NOSONAR
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user

@@ -26,7 +26,6 @@ class TestRegisterEndpoint:
     def test_register_success(self, api_client):
         """Test successful user registration."""
         data = {
-            'username': 'newuser',
             'email': 'newuser@example.com',
             'first_name': 'New',
             'last_name': 'User',
@@ -43,14 +42,12 @@ class TestRegisterEndpoint:
         
         # Verify user was created
         user = User.objects.get(email='newuser@example.com')
-        assert user.username == 'newuser'
         assert user.first_name == 'New'
         assert user.check_password('SecurePassword123!')
     
     def test_register_returns_jwt_tokens(self, api_client):
         """Test that registration returns valid JWT tokens."""
         data = {
-            'username': 'testuser',
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',
@@ -73,7 +70,6 @@ class TestRegisterEndpoint:
     def test_register_returns_user_data(self, api_client):
         """Test that registration returns user data."""
         data = {
-            'username': 'testuser',
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',
@@ -86,7 +82,6 @@ class TestRegisterEndpoint:
         assert response.status_code == status.HTTP_201_CREATED
         user_data = response.data['user']
         
-        assert user_data['username'] == 'testuser'
         assert user_data['email'] == 'test@example.com'
         assert user_data['first_name'] == 'Test'
         assert user_data['last_name'] == 'User'
@@ -96,7 +91,6 @@ class TestRegisterEndpoint:
     def test_register_password_mismatch(self, api_client):
         """Test registration with mismatched passwords."""
         data = {
-            'username': 'testuser',
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',
@@ -114,7 +108,6 @@ class TestRegisterEndpoint:
         UserFactory(email='existing@example.com')
         
         data = {
-            'username': 'newuser',
             'email': 'existing@example.com',
             'first_name': 'Test',
             'last_name': 'User',
@@ -127,28 +120,32 @@ class TestRegisterEndpoint:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'email' in response.data
     
-    def test_register_duplicate_username(self, api_client):
-        """Test registration with existing username."""
-        UserFactory(username='existinguser')
-        
-        data = {
-            'username': 'existinguser',
-            'email': 'new@example.com',
-            'first_name': 'Test',
+    def test_register_duplicate_username_handled(self, api_client):
+        """Test that two users with the same email prefix can both register.
+        Username is auto-generated from email; collisions are resolved internally."""
+        # First user: username auto-generated as 'shared'
+        resp1 = api_client.post(self.url, {
+            'email': 'shared@example.com',
+            'first_name': 'First',
             'last_name': 'User',
             'password': 'SecurePassword123!',
             'password_confirm': 'SecurePassword123!'
-        }
-        
-        response = api_client.post(self.url, data, format='json')
-        
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'username' in response.data
+        }, format='json')
+        assert resp1.status_code == status.HTTP_201_CREATED
+
+        # Second user with the same prefix: collision resolved to 'shared1'
+        resp2 = api_client.post(self.url, {
+            'email': 'shared@other.com',
+            'first_name': 'Second',
+            'last_name': 'User',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!'
+        }, format='json')
+        assert resp2.status_code == status.HTTP_201_CREATED
     
     def test_register_missing_required_fields(self, api_client):
         """Test registration with missing required fields."""
         data = {
-            'username': 'testuser',
             'email': 'test@example.com'
         }
         
@@ -162,7 +159,6 @@ class TestRegisterEndpoint:
     def test_register_weak_password(self, api_client):
         """Test registration with weak password."""
         data = {
-            'username': 'testuser',
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',
@@ -178,7 +174,6 @@ class TestRegisterEndpoint:
     def test_register_invalid_email(self, api_client):
         """Test registration with invalid email format."""
         data = {
-            'username': 'testuser',
             'email': 'invalid-email',
             'first_name': 'Test',
             'last_name': 'User',

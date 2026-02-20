@@ -140,7 +140,7 @@ class TestExamplePatterns:
         # Test missing required fields
         response = api_client.post(
             '/api/auth/register/',
-            {'username': 'onlyusername'},
+            {},
             format='json'
         )
         
@@ -154,7 +154,6 @@ class TestExamplePatterns:
         """Example: Testing a complete user workflow."""
         # Step 1: Register
         register_data = {
-            'username': 'workflowuser',
             'email': 'workflow@example.com',
             'first_name': 'Work',
             'last_name': 'Flow',
@@ -293,7 +292,6 @@ class TestSerializerValidation:
         from apps.users.serializers import RegisterSerializer
         
         data = {
-            'username': 'testuser',
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',

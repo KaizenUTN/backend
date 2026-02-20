@@ -82,19 +82,18 @@ def assert_authenticated_response(response):
     assert 'user' in response.data, "Response should contain 'user' data"
 
 
-def assert_user_data(data, expected_email=None, expected_username=None):
+def assert_user_data(data, expected_email=None):
     """
     Assert that user data contains expected fields and values.
     
     Args:
         data: User data dictionary
         expected_email: Expected email (optional)
-        expected_username: Expected username (optional)
     
     Usage:
         assert_user_data(response.data['user'], expected_email='test@example.com')
     """
-    required_fields = ['id', 'username', 'email', 'first_name', 'last_name']
+    required_fields = ['id', 'email', 'first_name', 'last_name']
     
     for field in required_fields:
         assert field in data, f"User data should contain '{field}'"
@@ -104,11 +103,6 @@ def assert_user_data(data, expected_email=None, expected_username=None):
     if expected_email:
         assert data['email'] == expected_email, (
             f"Expected email '{expected_email}', got '{data['email']}'"
-        )
-    
-    if expected_username:
-        assert data['username'] == expected_username, (
-            f"Expected username '{expected_username}', got '{data['username']}'"
         )
 
 

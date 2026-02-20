@@ -146,7 +146,7 @@ class TestUserModel:
     @pytest.mark.django_db
     def test_user_required_fields(self):
         """Test REQUIRED_FIELDS configuration."""
-        expected_fields = ['username', 'first_name', 'last_name']
+        expected_fields = ['first_name', 'last_name']
         assert User.REQUIRED_FIELDS == expected_fields
     
     @pytest.mark.django_db

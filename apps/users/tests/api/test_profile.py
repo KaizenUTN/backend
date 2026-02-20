@@ -26,7 +26,6 @@ class TestProfileEndpoint:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['id'] == user.id
         assert response.data['email'] == user.email
-        assert response.data['username'] == user.username
         assert 'password' not in response.data
     
     def test_get_profile_without_authentication(self, api_client):
@@ -56,7 +55,6 @@ class TestProfileEndpoint:
     def test_update_profile_put(self, authenticated_client, user):
         """Test updating profile with PUT."""
         data = {
-            'username': user.username,
             'email': user.email,
             'first_name': 'Complete',
             'last_name': 'Update'

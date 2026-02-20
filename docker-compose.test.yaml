@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: django_test
-    command: pytest --ds=config.settings.test --cov=apps --cov-report=html --cov-report=term-missing
+    command: bash /app/scripts/container/start_test.sh
     volumes:
       - .:/app
     environment:

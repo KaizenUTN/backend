@@ -43,11 +43,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.users',
+    'apps.authorization',
+    'apps.playground',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -109,6 +112,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -118,22 +126,73 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'KaizenUTN API',
     'DESCRIPTION': (
         'REST API para el sistema KaizenUTN.\n\n'
-        '## Autenticación\n'
-        'Esta API utiliza **JWT (JSON Web Tokens)** para autenticación.\n\n'
+
+        '---\n\n'
+
+        '## 🔐 Módulo Identity — Autenticación JWT\n\n'
+        'Gestiona el ciclo de vida de sesiones mediante **JSON Web Tokens (JWT)** '
+        'con la librería `djangorestframework-simplejwt`.\n\n'
         '### Flujo de autenticación\n'
-        '1. Registrarse con `POST /api/auth/register/` o iniciar sesión con `POST /api/auth/login/`.\n'
-        '2. Incluir el `access` token en el header `Authorization: Bearer <token>` en cada request protegido.\n'
-        '3. Cuando el `access` token expire (10 minutos), renovarlo con `POST /api/auth/refresh/` usando el `refresh` token (válido 7 días).\n'
-        '4. Al cerrar sesión, invalidar el `refresh` token con `POST /api/auth/logout/`.\n\n'
-        '## Endpoints disponibles\n'
-        '| Endpoint | Método | Auth requerida | Descripción |\n'
-        '|----------|--------|----------------|-------------|\n'
-        '| `/api/auth/register/` | POST | No | Registro de nuevo usuario |\n'
-        '| `/api/auth/login/` | POST | No | Inicio de sesión |\n'
-        '| `/api/auth/logout/` | POST | Sí | Cierre de sesión |\n'
-        '| `/api/auth/refresh/` | POST | No | Renovar access token |\n'
-        '| `/api/auth/profile/` | GET/PUT/PATCH | Sí | Ver y editar perfil |\n'
-        '| `/api/auth/change-password/` | POST | Sí | Cambiar contraseña |\n'
+        '1. **Registrarse** → `POST /api/auth/register/` — crea cuenta y retorna tokens.\n'
+        '2. **Iniciar sesión** → `POST /api/auth/login/` — retorna `access` + `refresh` token.\n'
+        '3. **Usar la API** → incluir `Authorization: Bearer <access_token>` en cada request protegido.\n'
+        '4. **Renovar token** → `POST /api/auth/refresh/` cuando el `access` expire (60 min).\n'
+        '5. **Cerrar sesión** → `POST /api/auth/logout/` invalida el `refresh` token (blacklist).\n\n'
+        '### Endpoints de Identity\n'
+        '| Endpoint | Método | Auth | Descripción |\n'
+        '|----------|--------|------|-------------|\n'
+        '| `/api/auth/register/` | POST | ❌ | Registro de nuevo usuario |\n'
+        '| `/api/auth/login/` | POST | ❌ | Inicio de sesión |\n'
+        '| `/api/auth/logout/` | POST | ✅ | Cierre de sesión (blacklist refresh token) |\n'
+        '| `/api/auth/refresh/` | POST | ❌ | Renovar access token con refresh token |\n'
+        '| `/api/auth/profile/` | GET/PUT/PATCH | ✅ | Ver y editar perfil propio |\n'
+        '| `/api/auth/change-password/` | POST | ✅ | Cambiar contraseña |\n\n'
+
+        '---\n\n'
+
+        '## 🛡️ Módulo Authorization — RBAC (Role-Based Access Control)\n\n'
+        'Sistema de autorización desacoplado del módulo Identity. Determina **qué puede hacer** '
+        'cada usuario, independientemente de cómo se autenticó.\n\n'
+        '### Arquitectura\n'
+        '```\n'
+        'Usuario  ──FK──►  Rol  ──M2M──►  Permiso\n'
+        '                  (name)          (code, description)\n'
+        '```\n\n'
+        '- Un usuario tiene **un rol** (ForeignKey, on_delete=PROTECT).\n'
+        '- Un rol puede tener **N permisos** (ManyToMany).\n'
+        '- Los códigos de permiso siguen la convención `<dominio>.<acción>`, ej: `conciliacion.run`.\n\n'
+        '### Roles del sistema\n'
+        '| Rol | Permisos incluidos |\n'
+        '|-----|--------------------|\n'
+        '| **Operador** | `conciliacion.view`, `reportes.view`, `dashboard.view` — asignado automáticamente al registrarse |\n'
+        '| **Administrador** | Todos los permisos del sistema (11 permisos) |\n\n'
+        '### Clases de permiso DRF disponibles\n'
+        '| Clase | Lógica | Ejemplo de uso |\n'
+        '|-------|--------|----------------|\n'
+        '| `HasPermission("x")` | Requiere el permiso `x` | Operaciones con permiso único |\n'
+        '| `HasAnyPermission("x", "y")` | Requiere `x` **OR** `y` | Recursos compartidos entre roles |\n'
+        '| `HasAllPermissions("x", "y")` | Requiere `x` **AND** `y` | Operaciones críticas, máxima granularidad |\n\n'
+        '### Propiedad clave — Cambio de rol en tiempo real\n'
+        'El módulo **consulta la base de datos en cada request** (`user.role.permissions.filter(code=...).exists()`). '
+        'Cambiar el rol de un usuario en el panel admin surte efecto en el siguiente request '
+        'sin necesidad de revocar ni renovar tokens JWT.\n\n'
+        '### Endpoints de Authorization\n'
+        '| Endpoint | Método | Permiso requerido | Clase usada |\n'
+        '|----------|--------|-------------------|-------------|\n'
+        '| `/api/authorization/me/permissions/` | GET | Solo autenticado | — |\n'
+        '| `/api/authorization/conciliacion/run/` | POST | `conciliacion.run` | `HasPermission` |\n'
+        '| `/api/authorization/conciliacion/` | GET | `conciliacion.view` | `HasPermission` |\n'
+        '| `/api/authorization/dashboard/` | GET | `dashboard.view` OR `admin.full` | `HasAnyPermission` |\n'
+        '| `/api/authorization/admin/panel/` | GET | `admin.read` AND `admin.write` | `HasAllPermissions` |\n\n'
+
+        '---\n\n'
+
+        '## 📋 Cómo usar el Swagger interactivo\n\n'
+        '1. Ir a `POST /api/auth/login/` e ingresar credenciales.\n'
+        '2. Copiar el valor del campo `access` de la respuesta.\n'
+        '3. Hacer click en el botón **Authorize 🔒** (arriba a la derecha).\n'
+        '4. Ingresar `Bearer <access_token>` en el campo `bearerAuth`.\n'
+        '5. Ahora todos los endpoints marcados con 🔒 usarán ese token automáticamente.\n'
     ),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -143,9 +202,24 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': False,
         'defaultModelsExpandDepth': 2,
         'defaultModelExpandDepth': 2,
+        'docExpansion': 'list',
+        'filter': True,
+        'tagsSorter': 'alpha',
     },
     'COMPONENT_SPLIT_REQUEST': True,
     'SORT_OPERATIONS': False,
+    'SECURITY': [{'bearerAuth': []}],
+    'SECURITY_DEFINITIONS': {
+        'bearerAuth': {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+            'description': (
+                'Token JWT obtenido desde `POST /api/auth/login/` o `POST /api/auth/register/`.\n\n'
+                'Formato: `Bearer <access_token>`'
+            ),
+        }
+    },
 }
 
 #jwt settings

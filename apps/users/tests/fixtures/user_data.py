@@ -26,7 +26,6 @@ VALID_ADMIN_DATA = {
 
 
 VALID_REGISTRATION_DATA = {
-    'username': 'newuser',
     'email': 'newuser@example.com',
     'first_name': 'New',
     'last_name': 'User',
@@ -50,8 +49,7 @@ VALID_PASSWORD_CHANGE_DATA = {
 
 VALID_PROFILE_UPDATE_DATA = {
     'first_name': 'Updated',
-    'last_name': 'Name',
-    'username': 'updateduser'
+    'last_name': 'Name'
 }
 
 

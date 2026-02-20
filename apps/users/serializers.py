@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ObjectDoesNotExist
 from typing import cast
 
 from .models import User
@@ -12,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+        fields = ['id', 'email', 'first_name', 'last_name',
                   'full_name', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active']
 
@@ -72,7 +73,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 
+        fields = ['email', 'first_name', 'last_name',
                   'password', 'password_confirm']
         extra_kwargs = {
             'first_name': {'required': True},
@@ -93,21 +94,33 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
         return value
     
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError(
-                'A user with this username already exists.'
-            )
-        return value
-    
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
-        
+
+        # Genera un username único a partir del email (no expuesto en la API)
+        base = validated_data.get('email', '').split('@')[0]
+        username = base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base}{counter}"
+            counter += 1
+        validated_data['username'] = username
+
         user = User.objects.create(**validated_data)
         user.set_password(password)
+
+        # Asigna el rol por defecto "Operador" si está definido en el sistema.
+        # Importación diferida para evitar acoplamiento circular users → authorization.
+        # Si el rol no existe (entorno limpio sin seed), se deja sin rol.
+        try:
+            from apps.authorization.models import Role  # noqa: PLC0415
+            user.role_id = Role.objects.get(name='Operador').pk
+        except (ImportError, ObjectDoesNotExist):
+            pass
+
         user.save()
-        
+
         return user
 
 
@@ -154,3 +167,60 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(validated.get('new_password'))
         user.save()
         return user
+
+
+# ===========================================================================
+# Serializers de administración de usuarios
+# ===========================================================================
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """
+    Representación completa de un usuario para endpoints administrativos.
+    Incluye role_name como campo de solo lectura para evitar un join adicional en el frontend.
+    No expone password ni token_version.
+    """
+    full_name = serializers.CharField(read_only=True)
+    role_name = serializers.CharField(source='role.name', read_only=True, default=None)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'full_name',
+            'role', 'role_name', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class AdminCreateUserSerializer(serializers.Serializer):
+    """
+    Valida datos para el alta administrativa de un usuario.
+    Role es opcional; si no se provee, el usuario queda sin rol asignado.
+    """
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        style={'input_type': 'password'},
+    )
+    role_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    is_active = serializers.BooleanField(default=True)
+
+    def validate_email(self, value: str) -> str:
+        from .models import User as _User
+        if _User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('Ya existe un usuario con este email.')
+        return value
+
+
+class AdminUpdateUserSerializer(serializers.Serializer):
+    """
+    Valida datos para la edición administrativa de un usuario.
+    Todos los campos son opcionales (semántica PATCH).
+    Para cambiar is_active usar el endpoint dedicado /deactivate/.
+    Para cambiar password usar el endpoint dedicado /reset-password/.
+    """
+    first_name = serializers.CharField(max_length=150, required=False)
+    last_name = serializers.CharField(max_length=150, required=False)
+    role_id = serializers.IntegerField(required=False, allow_null=True)

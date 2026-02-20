@@ -9,6 +9,7 @@ from drf_spectacular.utils import (
 from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -85,7 +86,6 @@ _message_response = inline_serializer(
                         'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                         'user': {
                             'id': 1,
-                            'username': 'johndoe',
                             'email': 'john@example.com',
                             'first_name': 'John',
                             'last_name': 'Doe',
@@ -153,14 +153,13 @@ def login_view(request):
         '**Retorna** un par de tokens JWT (`access` + `refresh`) junto con los datos '
         'del usuario recién creado, permitiendo un inicio de sesión inmediato tras el registro.\n\n'
         '**Validaciones aplicadas:**\n'
-        '- `username` debe ser único en el sistema.\n'
         '- `email` debe ser único y tener formato válido.\n'
         '- `first_name` y `last_name` son obligatorios.\n'
         '- `password` debe cumplir las políticas de Django: mínimo 8 caracteres, '
         'no puede ser completamente numérica, no puede ser demasiado común.\n'
         '- `password` y `password_confirm` deben coincidir.\n\n'
         '**Errores comunes:**\n'
-        '- `400` — El email o username ya están en uso.\n'
+        '- `400` — El email ya está en uso.\n'
         '- `400` — Las contraseñas no coinciden.\n'
         '- `400` — La contraseña no cumple los requisitos de seguridad.'
     ),
@@ -177,7 +176,6 @@ def login_view(request):
                         'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                         'user': {
                             'id': 2,
-                            'username': 'janedoe',
                             'email': 'jane@example.com',
                             'first_name': 'Jane',
                             'last_name': 'Doe',
@@ -211,7 +209,6 @@ def login_view(request):
         OpenApiExample(
             name='Ejemplo de registro',
             value={
-                'username': 'janedoe',
                 'email': 'jane@example.com',
                 'first_name': 'Jane',
                 'last_name': 'Doe',
@@ -229,7 +226,6 @@ def register_view(request):
     User registration endpoint
     POST /api/auth/register/
     Body: {
-        "username": "johndoe",
         "email": "john@example.com",
         "first_name": "John",
         "last_name": "Doe",
@@ -372,7 +368,6 @@ def logout_view(request):
                     name='Perfil del usuario',
                     value={
                         'id': 1,
-                        'username': 'johndoe',
                         'email': 'john@example.com',
                         'first_name': 'John',
                         'last_name': 'Doe',
@@ -399,15 +394,14 @@ def logout_view(request):
         'Aunque se envíe en el body, será ignorado y se conservará el email actual.\n\n'
         'Con `PUT` todos los campos son requeridos (excepto email). '
         'Para actualizaciones parciales usar `PATCH`.\n\n'
-        '**Campos actualizables:** `username`, `first_name`, `last_name`\n\n'
+        '**Campos actualizables:** `first_name`, `last_name`\n\n'
         '**Errores comunes:**\n'
-        '- `400` — Datos de validación inválidos (e.g. username ya en uso).\n'
+        '- `400` — Datos de validación inválidos.\n'
         '- `401` — No autenticado o token expirado.'
     ),
     request=inline_serializer(
         name='ProfileUpdateRequest',
         fields={
-            'username': drf_serializers.CharField(help_text='Nombre de usuario único.'),
             'first_name': drf_serializers.CharField(help_text='Nombre del usuario.'),
             'last_name': drf_serializers.CharField(help_text='Apellido del usuario.'),
         }
@@ -423,7 +417,7 @@ def logout_view(request):
     examples=[
         OpenApiExample(
             name='Actualización completa',
-            value={'username': 'john_updated', 'first_name': 'John', 'last_name': 'Smith'},
+            value={'first_name': 'John', 'last_name': 'Smith'},
             request_only=True,
         )
     ]
@@ -437,7 +431,7 @@ def logout_view(request):
         'de enviar todos los campos.\n\n'
         '**Requiere autenticación:** Header `Authorization: Bearer <access_token>`\n\n'
         '> ℹ️ **Nota:** El campo `email` no puede modificarse a través de este endpoint.\n\n'
-        '**Campos actualizables:** `username`, `first_name`, `last_name`\n\n'
+        '**Campos actualizables:** `first_name`, `last_name`\n\n'
         '**Errores comunes:**\n'
         '- `400` — Datos de validación inválidos.\n'
         '- `401` — No autenticado o token expirado.'
@@ -445,9 +439,6 @@ def logout_view(request):
     request=inline_serializer(
         name='ProfilePatchRequest',
         fields={
-            'username': drf_serializers.CharField(
-                required=False, help_text='Nombre de usuario único (opcional).'
-            ),
             'first_name': drf_serializers.CharField(
                 required=False, help_text='Nombre del usuario (opcional).'
             ),
@@ -479,7 +470,7 @@ def profile_view(request):
     Get or update user profile
     GET /api/auth/profile/ - Returns current user data
     PUT/PATCH /api/auth/profile/ - Updates current user data
-    Body for update: {"first_name": "John", "last_name": "Doe", "username": "johndoe"}
+    Body for update: {"first_name": "John", "last_name": "Doe"}
     """
     user = request.user
     
@@ -596,3 +587,356 @@ def change_password_view(request):
         )
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ===========================================================================
+# Administración de usuarios
+# Prefijo: /api/users/
+# ===========================================================================
+
+from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
+
+from apps.authorization.permissions import HasPermission
+from .filters import UserFilter
+from .selectors import get_user_by_id, get_user_list
+from .services import create_user, deactivate_user, reset_password, update_user
+from .serializers import (
+    AdminCreateUserSerializer,
+    AdminUpdateUserSerializer,
+    AdminUserSerializer,
+)
+
+_admin_tag = ['👥 Administración de Usuarios']
+
+_user_example = {
+    'id': 5,
+    'email': 'maria@empresa.com',
+    'first_name': 'María',
+    'last_name': 'González',
+    'full_name': 'María González',
+    'role': 1,
+    'role_name': 'Operador',
+    'is_active': True,
+    'created_at': '2025-06-01T12:00:00Z',
+    'updated_at': '2025-06-01T12:00:00Z',
+}
+
+
+@extend_schema(
+    methods=['GET'],
+    tags=_admin_tag,
+    summary='Listar usuarios',
+    description=(
+        'Retorna la lista paginada de todos los usuarios del sistema.\n\n'
+        '**Requiere permiso:** `usuarios.view`\n\n'
+        '### Filtros de query string\n'
+        '| Parámetro | Tipo | Descripción |\n'
+        '|-----------|------|-------------|\n'
+        '| `email` | string | Búsqueda parcial (case-insensitive) |\n'
+        '| `role` | integer | ID exacto del rol |\n'
+        '| `is_active` | boolean | `true` / `false` |\n'
+        '| `search` | string | Búsqueda en email, nombre y apellido |\n'
+        '| `ordering` | string | `created_at`, `-created_at`, `email`, `last_name` |\n'
+        '| `page` | integer | Número de página (tamaño: 10) |\n\n'
+        '### Ejemplo de request\n'
+        '```\n'
+        'GET /api/users/?is_active=true&ordering=-created_at&page=1\n'
+        '```'
+    ),
+    responses={
+        200: OpenApiResponse(
+            response=AdminUserSerializer(many=True),
+            description='Lista paginada de usuarios.',
+            examples=[
+                OpenApiExample(
+                    'Lista paginada',
+                    value={
+                        'count': 1,
+                        'next': None,
+                        'previous': None,
+                        'results': [_user_example],
+                    },
+                    response_only=True,
+                )
+            ],
+        ),
+        403: OpenApiResponse(description='Sin permiso `usuarios.view`.'),
+    },
+)
+@extend_schema(
+    methods=['POST'],
+    tags=_admin_tag,
+    summary='Crear usuario',
+    description=(
+        'Crea un nuevo usuario desde el panel de administración.\n\n'
+        '**Requiere permiso:** `usuarios.create`\n\n'
+        'A diferencia del registro público (`/api/auth/register/`), '
+        'permite asignar rol y estado inicial al momento de la creación.\n\n'
+        '**Validaciones:**\n'
+        '- `email` debe ser único.\n'
+        '- `password` debe cumplir las políticas de seguridad de Django.\n'
+        '- `role_id` es opcional; si se omite, el usuario queda sin rol.'
+    ),
+    request=AdminCreateUserSerializer,
+    responses={
+        201: OpenApiResponse(
+            response=AdminUserSerializer,
+            description='Usuario creado exitosamente.',
+            examples=[OpenApiExample('Usuario creado', value=_user_example, response_only=True)],
+        ),
+        400: OpenApiResponse(description='Datos de validación inválidos.'),
+        403: OpenApiResponse(description='Sin permiso `usuarios.create`.'),
+    },
+    examples=[
+        OpenApiExample(
+            'Crear usuario',
+            value={
+                'email': 'maria@empresa.com',
+                'first_name': 'María',
+                'last_name': 'González',
+                'password': 'SecurePass123!',
+                'role_id': 1,
+                'is_active': True,
+            },
+            request_only=True,
+        )
+    ],
+)
+class UserListCreateView(APIView):
+    """
+    GET  /api/users/   → listar usuarios (requiere usuarios.view)
+    POST /api/users/   → crear usuario   (requiere usuarios.create)
+    """
+
+    def get_permissions(self):  # type: ignore[override]
+        if self.request.method == 'POST':
+            return [IsAuthenticated(), HasPermission('usuarios.create')()]
+        return [IsAuthenticated(), HasPermission('usuarios.view')()]
+
+    def get(self, request: Request) -> Response:
+        qs = get_user_list()
+
+        # Aplicar filtros (UserFilter) y search/ordering de DRF
+        from django_filters.rest_framework import DjangoFilterBackend
+        from rest_framework.filters import OrderingFilter, SearchFilter
+
+        for backend in [DjangoFilterBackend(), SearchFilter(), OrderingFilter()]:
+            qs = backend.filter_queryset(request, qs, self)  # type: ignore[arg-type]
+
+        # Paginación
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        serializer = AdminUserSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    # Atributos consumidos por SearchFilter y OrderingFilter
+    search_fields = ['email', 'first_name', 'last_name']
+    ordering_fields = ['created_at', 'email', 'last_name']
+    ordering = ['-created_at']
+    filterset_class = UserFilter
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminCreateUserSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = cast(dict, serializer.validated_data)
+        try:
+            user = create_user(
+                email=data['email'],
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                password=data['password'],
+                role_id=data.get('role_id'),
+                is_active=data.get('is_active', True),
+            )
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    methods=['GET'],
+    tags=_admin_tag,
+    summary='Obtener usuario',
+    description='Retorna los datos de un usuario por ID.\n\n**Requiere permiso:** `usuarios.view`',
+    responses={
+        200: OpenApiResponse(
+            response=AdminUserSerializer,
+            examples=[OpenApiExample('Usuario', value=_user_example, response_only=True)],
+        ),
+        404: OpenApiResponse(description='Usuario no encontrado.'),
+        403: OpenApiResponse(description='Sin permiso `usuarios.view`.'),
+    },
+)
+@extend_schema(
+    methods=['PATCH'],
+    tags=_admin_tag,
+    summary='Editar usuario',
+    description=(
+        'Actualiza los datos administrativos de un usuario.\n\n'
+        '**Requiere permiso:** `usuarios.edit`\n\n'
+        'Todos los campos son opcionales (semántica PATCH).\n'
+        'Para cambiar contraseña usar `/reset-password/`. '
+        'Para desactivar usar `/deactivate/`.'
+    ),
+    request=AdminUpdateUserSerializer,
+    responses={
+        200: OpenApiResponse(
+            response=AdminUserSerializer,
+            examples=[OpenApiExample('Usuario actualizado', value=_user_example, response_only=True)],
+        ),
+        400: OpenApiResponse(description='Datos de validación inválidos.'),
+        404: OpenApiResponse(description='Usuario no encontrado.'),
+        403: OpenApiResponse(description='Sin permiso `usuarios.edit`.'),
+    },
+    examples=[
+        OpenApiExample(
+            'Editar rol',
+            value={'role_id': 2},
+            request_only=True,
+        )
+    ],
+)
+class UserDetailUpdateView(APIView):
+    """
+    GET   /api/users/{id}/  → obtener usuario  (requiere usuarios.view)
+    PATCH /api/users/{id}/  → editar usuario   (requiere usuarios.edit)
+    """
+
+    def get_permissions(self):  # type: ignore[override]
+        if self.request.method == 'PATCH':
+            return [IsAuthenticated(), HasPermission('usuarios.edit')()]
+        return [IsAuthenticated(), HasPermission('usuarios.view')()]
+
+    def _get_user(self, user_id: int) -> User | Response:
+        try:
+            return get_user_by_id(user_id)
+        except User.DoesNotExist:
+            return Response({'detail': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def get(self, request: Request, user_id: int) -> Response:
+        result = self._get_user(user_id)
+        if isinstance(result, Response):
+            return result
+        return Response(AdminUserSerializer(result).data)
+
+    def patch(self, request: Request, user_id: int) -> Response:
+        result = self._get_user(user_id)
+        if isinstance(result, Response):
+            return result
+
+        serializer = AdminUpdateUserSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = cast(dict, serializer.validated_data)
+        user = update_user(
+            user=result,
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            role_id=data.get('role_id'),
+        )
+        return Response(AdminUserSerializer(user).data)
+
+
+@extend_schema(
+    tags=_admin_tag,
+    summary='Desactivar usuario',
+    description=(
+        'Desactiva un usuario (soft delete — `is_active = false`).\n\n'
+        '**Requiere permiso:** `usuarios.delete`\n\n'
+        'Incrementa `token_version` para invalidar todos los JWTs activos del usuario '
+        'sin esperar a que expiren naturalmente.\n\n'
+        'La cuenta queda en la base de datos y puede reactivarse desde el admin de Django.'
+    ),
+    request=None,
+    responses={
+        200: OpenApiResponse(
+            response=AdminUserSerializer,
+            description='Usuario desactivado.',
+            examples=[
+                OpenApiExample(
+                    'Desactivado',
+                    value={**_user_example, 'is_active': False},
+                    response_only=True,
+                )
+            ],
+        ),
+        404: OpenApiResponse(description='Usuario no encontrado.'),
+        403: OpenApiResponse(description='Sin permiso `usuarios.delete`.'),
+    },
+)
+class UserDeactivateView(APIView):
+    """POST /api/users/{id}/deactivate/ — desactiva un usuario (requiere usuarios.delete)"""
+    permission_classes = [IsAuthenticated, HasPermission('usuarios.delete')]
+
+    def post(self, request: Request, user_id: int) -> Response:
+        try:
+            user = get_user_by_id(user_id)
+        except User.DoesNotExist:
+            return Response({'detail': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not user.is_active:
+            return Response({'detail': 'El usuario ya está desactivado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = deactivate_user(user=user)
+        return Response(AdminUserSerializer(user).data)
+
+
+@extend_schema(
+    tags=_admin_tag,
+    summary='Reset de contraseña',
+    description=(
+        'Genera una contraseña temporal aleatoria para el usuario.\n\n'
+        '**Requiere permiso:** `usuarios.edit`\n\n'
+        'Incrementa `token_version` para invalidar todos los JWTs activos del usuario.\n\n'
+        '> ⚠️ La contraseña temporal se retorna en la respuesta **una única vez**. '
+        'Es responsabilidad del caller comunicarla al usuario de forma segura.\n\n'
+        '> 📧 TODO: Integrar envío automático por email.'
+    ),
+    request=None,
+    responses={
+        200: OpenApiResponse(
+            response=inline_serializer(
+                name='ResetPasswordResponse',
+                fields={
+                    'temp_password': drf_serializers.CharField(
+                        help_text='Contraseña temporal generada. Válida para el próximo login.'
+                    ),
+                    'user': AdminUserSerializer(),
+                },
+            ),
+            description='Contraseña reseteada exitosamente.',
+            examples=[
+                OpenApiExample(
+                    'Reset exitoso',
+                    value={
+                        'temp_password': 'aB3!kX9&',
+                        'user': _user_example,
+                    },
+                    response_only=True,
+                )
+            ],
+        ),
+        404: OpenApiResponse(description='Usuario no encontrado.'),
+        403: OpenApiResponse(description='Sin permiso `usuarios.edit`.'),
+    },
+)
+class UserResetPasswordView(APIView):
+    """POST /api/users/{id}/reset-password/ — resetea contraseña (requiere usuarios.edit)"""
+    permission_classes = [IsAuthenticated, HasPermission('usuarios.edit')]
+
+    def post(self, request: Request, user_id: int) -> Response:
+        try:
+            user = get_user_by_id(user_id)
+        except User.DoesNotExist:
+            return Response({'detail': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        temp_password = reset_password(user=user)
+        return Response({
+            'temp_password': temp_password,
+            'user': AdminUserSerializer(user).data,
+        })
