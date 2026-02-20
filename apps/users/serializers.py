@@ -167,3 +167,60 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(validated.get('new_password'))
         user.save()
         return user
+
+
+# ===========================================================================
+# Serializers de administración de usuarios
+# ===========================================================================
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """
+    Representación completa de un usuario para endpoints administrativos.
+    Incluye role_name como campo de solo lectura para evitar un join adicional en el frontend.
+    No expone password ni token_version.
+    """
+    full_name = serializers.CharField(read_only=True)
+    role_name = serializers.CharField(source='role.name', read_only=True, default=None)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'full_name',
+            'role', 'role_name', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class AdminCreateUserSerializer(serializers.Serializer):
+    """
+    Valida datos para el alta administrativa de un usuario.
+    Role es opcional; si no se provee, el usuario queda sin rol asignado.
+    """
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        style={'input_type': 'password'},
+    )
+    role_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    is_active = serializers.BooleanField(default=True)
+
+    def validate_email(self, value: str) -> str:
+        from .models import User as _User
+        if _User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('Ya existe un usuario con este email.')
+        return value
+
+
+class AdminUpdateUserSerializer(serializers.Serializer):
+    """
+    Valida datos para la edición administrativa de un usuario.
+    Todos los campos son opcionales (semántica PATCH).
+    Para cambiar is_active usar el endpoint dedicado /deactivate/.
+    Para cambiar password usar el endpoint dedicado /reset-password/.
+    """
+    first_name = serializers.CharField(max_length=150, required=False)
+    last_name = serializers.CharField(max_length=150, required=False)
+    role_id = serializers.IntegerField(required=False, allow_null=True)

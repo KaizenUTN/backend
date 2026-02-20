@@ -10,7 +10,8 @@ Tests cover:
 """
 
 import pytest
-from django.contrib.auth import get_user_model
+from typing import Any, cast
+from apps.users.models import User
 from apps.users.serializers import (
     UserSerializer,
     LoginSerializer,
@@ -18,8 +19,6 @@ from apps.users.serializers import (
     ChangePasswordSerializer
 )
 from apps.users.tests.factories.user_factory import UserFactory
-
-User = get_user_model()
 
 pytestmark = pytest.mark.unit
 
@@ -37,7 +36,7 @@ class TestUserSerializer:
         )
         
         serializer = UserSerializer(user)
-        data = serializer.data
+        data = dict(serializer.data)
         
         assert data['id'] == user.id
         assert data['email'] == 'test@example.com'
@@ -83,7 +82,7 @@ class TestLoginSerializer:
         
         serializer = LoginSerializer(data=data)
         assert serializer.is_valid()
-        assert serializer.validated_data['user'] == user
+        assert cast(dict, serializer.validated_data)['user'] == user
     
     @pytest.mark.django_db
     def test_login_with_wrong_password(self):
@@ -173,7 +172,7 @@ class TestRegisterSerializer:
         serializer = RegisterSerializer(data=data)
         assert serializer.is_valid()
         
-        user = serializer.save()
+        user = cast(User, serializer.save())
         assert user.email == 'new@example.com'
         assert user.check_password('SecurePassword123!')
         assert user.is_active is True
@@ -198,7 +197,7 @@ class TestRegisterSerializer:
         }
         serializer = RegisterSerializer(data=data)
         assert serializer.is_valid()
-        user = serializer.save()
+        user = cast(User, serializer.save())
 
         assert user.role is not None
         assert user.role.name == 'Operador'
@@ -215,7 +214,7 @@ class TestRegisterSerializer:
         }
         serializer = RegisterSerializer(data=data)
         assert serializer.is_valid()
-        user = serializer.save()
+        user = cast(User, serializer.save())
 
         assert user.role is None
 
@@ -257,7 +256,7 @@ class TestRegisterSerializer:
         User.objects.create_user(
             username='newuser',
             email='other@example.com',
-            password='pass',
+            password='pass',  # noqa: S106  # NOSONAR
             first_name='Other',
             last_name='User'
         )
@@ -271,7 +270,7 @@ class TestRegisterSerializer:
         }
         serializer = RegisterSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
-        user = serializer.save()
+        user = cast(User, serializer.save())
         # Collision resolved: username becomes 'newuser1'
         assert user.username == 'newuser1'
     
@@ -282,8 +281,8 @@ class TestRegisterSerializer:
             'email': 'new@example.com',
             'first_name': 'New',
             'last_name': 'User',
-            'password': '123',  # Too weak
-            'password_confirm': '123'
+            'password': '123',  # Too weak  # noqa: S106  # NOSONAR
+            'password_confirm': '123'  # noqa: S106  # NOSONAR
         }
         
         serializer = RegisterSerializer(data=data)
@@ -318,7 +317,7 @@ class TestChangePasswordSerializer:
         
         # Create a mock request with user
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -340,7 +339,7 @@ class TestChangePasswordSerializer:
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -363,7 +362,7 @@ class TestChangePasswordSerializer:
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
@@ -381,12 +380,12 @@ class TestChangePasswordSerializer:
         """Test password change with weak new password."""
         data = {
             'old_password': 'TestPassword123!',
-            'new_password': '123',  # Too weak
-            'new_password_confirm': '123'
+            'new_password': '123',  # Too weak  # noqa: S106  # NOSONAR
+            'new_password_confirm': '123'  # noqa: S106  # NOSONAR
         }
         
         class MockRequest:
-            pass
+            user: Any
         
         request = MockRequest()
         request.user = user
