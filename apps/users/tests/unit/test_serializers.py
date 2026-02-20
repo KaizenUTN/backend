@@ -180,7 +180,45 @@ class TestRegisterSerializer:
         # Username is auto-generated from email prefix
         assert user.username is not None
         assert 'new' in user.username
-    
+
+    @pytest.mark.django_db
+    def test_create_user_assigns_default_role(self):
+        """Test that registration assigns the 'Operador' role when it exists."""
+        from apps.authorization.models import Role, Permission
+        perm = Permission.objects.create(code='dashboard.view', description='Ver dashboard')
+        role = Role.objects.create(name='Operador')
+        role.permissions.set([perm])
+
+        data = {
+            'email': 'new@example.com',
+            'first_name': 'New',
+            'last_name': 'User',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert serializer.is_valid()
+        user = serializer.save()
+
+        assert user.role is not None
+        assert user.role.name == 'Operador'
+
+    @pytest.mark.django_db
+    def test_create_user_no_role_when_role_missing(self):
+        """Test that user is created without role when 'Operador' role doesn't exist."""
+        data = {
+            'email': 'new@example.com',
+            'first_name': 'New',
+            'last_name': 'User',
+            'password': 'SecurePassword123!',
+            'password_confirm': 'SecurePassword123!'
+        }
+        serializer = RegisterSerializer(data=data)
+        assert serializer.is_valid()
+        user = serializer.save()
+
+        assert user.role is None
+
     @pytest.mark.django_db
     def test_registration_password_mismatch(self):
         """Test registration with mismatched passwords."""

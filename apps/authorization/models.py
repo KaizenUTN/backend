@@ -54,7 +54,7 @@ class Role(models.Model):
         max_length=100,
         unique=True,
         verbose_name="Nombre",
-        help_text='Nombre único del rol. Ej: "Analista", "Supervisor", "Admin".',
+        help_text='Nombre único del rol. Ej: "Operador", "Administrador".',
     )
     permissions = models.ManyToManyField(
         Permission,

@@ -24,6 +24,7 @@ class User(AbstractUser):
         related_name='users',
         verbose_name='Rol',
     )
+    role_id: int | None  # atributo shadow generado por ForeignKey; anotado para Pylance
 
     # Campos de auditoría básica
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')

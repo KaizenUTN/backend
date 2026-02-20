@@ -45,23 +45,10 @@ PERMISSIONS: list[dict] = [
 
 ROLES: list[dict] = [
     {
-        "name": "Solo Lectura",
-        "permissions": ["conciliacion.view", "reportes.view", "dashboard.view"],
-    },
-    {
-        "name": "Analista",
-        "permissions": ["conciliacion.run", "conciliacion.view", "reportes.view", "dashboard.view"],
-    },
-    {
-        "name": "Supervisor",
-        "permissions": [
-            "conciliacion.run",
-            "conciliacion.view",
-            "conciliacion.export",
-            "reportes.view",
-            "reportes.export",
-            "dashboard.view",
-        ],
+        # Rol por defecto asignado automáticamente al registrarse.
+        # Permisos básicos de consulta, sin capacidad de gestión ni administración.
+        "name": "Operador",
+        "permissions": ["dashboard.view", "reportes.view", "conciliacion.view"],
     },
     {
         "name": "Administrador",

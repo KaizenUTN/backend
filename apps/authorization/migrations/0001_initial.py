@@ -59,7 +59,7 @@ class Migration(migrations.Migration):
                 (
                     "name",
                     models.CharField(
-                        help_text='Nombre único del rol. Ej: "Analista", "Supervisor", "Admin".',
+                        help_text='Nombre único del rol. Ej: "Operador", "Administrador".',
                         max_length=100,
                         unique=True,
                         verbose_name="Nombre",

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ObjectDoesNotExist
 from typing import cast
 
 from .models import User
@@ -108,8 +109,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         user = User.objects.create(**validated_data)
         user.set_password(password)
+
+        # Asigna el rol por defecto "Operador" si está definido en el sistema.
+        # Importación diferida para evitar acoplamiento circular users → authorization.
+        # Si el rol no existe (entorno limpio sin seed), se deja sin rol.
+        try:
+            from apps.authorization.models import Role  # noqa: PLC0415
+            user.role_id = Role.objects.get(name='Operador').pk
+        except (ImportError, ObjectDoesNotExist):
+            pass
+
         user.save()
-        
+
         return user
 
 
