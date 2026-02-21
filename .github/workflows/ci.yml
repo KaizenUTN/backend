@@ -44,9 +44,3 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
-
-      # ── 6. Análisis SonarQube Cloud ──────────────────────────────────────
-      - name: Analizar con SonarQube Cloud
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
