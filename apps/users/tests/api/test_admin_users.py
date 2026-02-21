@@ -43,7 +43,7 @@ def _auth_client(user) -> APIClient:
     """Retorna un APIClient autenticado con JWT del usuario dado."""
     client = APIClient()
     token = RefreshToken.for_user(user)
-    client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(token.access_token)}')
+    client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(token.access_token)}')  # type: ignore[attr-defined]
     return client
 
 
@@ -155,7 +155,7 @@ class TestUserCreateView:
             'email': 'new@example.com',
             'first_name': 'N',
             'last_name': 'N',
-            'password': 'SecurePass123!',
+            'password': 'SecurePass123!',  # noqa: S106 # NOSONAR
         }
         response = view_client.post(self.url, data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -165,7 +165,7 @@ class TestUserCreateView:
             'email': 'brand_new@example.com',
             'first_name': 'Brand',
             'last_name': 'New',
-            'password': 'SecurePass123!',
+            'password': 'SecurePass123!',  # noqa: S106 # NOSONAR
         }
         response = admin_client.post(self.url, data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
@@ -178,7 +178,7 @@ class TestUserCreateView:
             'email': 'withrole@example.com',
             'first_name': 'R',
             'last_name': 'R',
-            'password': 'SecurePass123!',
+            'password': 'SecurePass123!',  # noqa: S106 # NOSONAR
             'role_id': role.pk,
         }
         response = admin_client.post(self.url, data, format='json')
@@ -190,7 +190,7 @@ class TestUserCreateView:
             'email': target_user.email,
             'first_name': 'D',
             'last_name': 'D',
-            'password': 'SecurePass123!',
+            'password': 'SecurePass123!',  # noqa: S106 # NOSONAR
         }
         response = admin_client.post(self.url, data, format='json')
         assert response.status_code == status.HTTP_400_BAD_REQUEST

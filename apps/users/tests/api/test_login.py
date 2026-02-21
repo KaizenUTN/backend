@@ -22,7 +22,7 @@ class TestLoginEndpoint:
     
     def test_login_success(self, api_client):
         """Test successful login with valid credentials."""
-        user = UserFactory(email='test@example.com')
+        UserFactory(email='test@example.com')
         
         data = {
             'email': 'test@example.com',

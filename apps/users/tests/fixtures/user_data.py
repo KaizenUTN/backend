@@ -4,13 +4,21 @@ Static user data fixtures for testing.
 Provides predefined user data dictionaries for consistent testing.
 """
 
+# ---------------------------------------------------------------------------
+# Shared constants (avoid duplicated literals)
+# ---------------------------------------------------------------------------
+
+TEST_EMAIL: str = 'test@example.com'
+TEST_PASSWORD: str = 'TestPassword123!'  # NOSONAR
+COMMON_PASSWORD: str = 'Password123!'  # NOSONAR
+
 
 VALID_USER_DATA = {
     'username': 'testuser',
-    'email': 'test@example.com',
+    'email': TEST_EMAIL,
     'first_name': 'Test',
     'last_name': 'User',
-    'password': 'TestPassword123!'
+    'password': TEST_PASSWORD  # NOSONAR
 }
 
 
@@ -35,15 +43,15 @@ VALID_REGISTRATION_DATA = {
 
 
 VALID_LOGIN_DATA = {
-    'email': 'test@example.com',
-    'password': 'TestPassword123!'
+    'email': TEST_EMAIL,
+    'password': TEST_PASSWORD  # NOSONAR
 }
 
 
 VALID_PASSWORD_CHANGE_DATA = {
-    'old_password': 'TestPassword123!',
-    'new_password': 'NewPassword456!',
-    'new_password_confirm': 'NewPassword456!'
+    'old_password': TEST_PASSWORD,  # NOSONAR
+    'new_password': 'NewPassword456!',  # NOSONAR
+    'new_password_confirm': 'NewPassword456!'  # NOSONAR
 }
 
 
@@ -80,19 +88,19 @@ INVALID_REGISTRATION_DATA = [
     # Missing fields
     {
         'username': 'testuser',
-        'email': 'test@example.com',
-        'password': 'TestPassword123!',
-        'password_confirm': 'TestPassword123!'
+        'email': TEST_EMAIL,
+        'password': TEST_PASSWORD,  # NOSONAR
+        'password_confirm': TEST_PASSWORD  # NOSONAR
         # Missing first_name, last_name
     },
     # Password mismatch
     {
         'username': 'testuser',
-        'email': 'test@example.com',
+        'email': TEST_EMAIL,
         'first_name': 'Test',
         'last_name': 'User',
-        'password': 'TestPassword123!',
-        'password_confirm': 'DifferentPassword456!'
+        'password': TEST_PASSWORD,  # NOSONAR
+        'password_confirm': 'DifferentPassword456!'  # NOSONAR
     },
     # Invalid email
     {
@@ -100,8 +108,8 @@ INVALID_REGISTRATION_DATA = [
         'email': 'notanemail',
         'first_name': 'Test',
         'last_name': 'User',
-        'password': 'TestPassword123!',
-        'password_confirm': 'TestPassword123!'
+        'password': TEST_PASSWORD,  # NOSONAR
+        'password_confirm': TEST_PASSWORD  # NOSONAR
     },
 ]
 
@@ -114,20 +122,20 @@ MULTIPLE_USERS_DATA = [
         'email': 'user1@example.com',
         'first_name': 'User',
         'last_name': 'One',
-        'password': 'Password123!'
+        'password': COMMON_PASSWORD  # NOSONAR
     },
     {
         'username': 'user2',
         'email': 'user2@example.com',
         'first_name': 'User',
         'last_name': 'Two',
-        'password': 'Password123!'
+        'password': COMMON_PASSWORD  # NOSONAR
     },
     {
         'username': 'user3',
         'email': 'user3@example.com',
         'first_name': 'User',
         'last_name': 'Three',
-        'password': 'Password123!'
+        'password': COMMON_PASSWORD  # NOSONAR
     },
 ]

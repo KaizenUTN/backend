@@ -23,12 +23,12 @@ API REST modular construida con Django 6 y Django REST Framework. Orientada a en
 
 ## 1. Descripción del Proyecto
 
-Backend API REST con autenticación JWT, control de acceso basado en roles (RBAC) y administración de usuarios.
+Backend API REST con autenticación JWT, control de acceso basado en roles (RBAC), administración de usuarios y auditoría extensible.
 
 **Stack técnico:**
 
 | Componente | Tecnología |
-|-----------|-----------|
+|-----------|------------|
 | Lenguaje | Python 3.12 |
 | Framework | Django 6.0 + DRF 3.16 |
 | Autenticación | SimpleJWT + Argon2 |
@@ -70,6 +70,7 @@ No se requiere Python, pip ni PostgreSQL instalados localmente. Todo corre dentr
 apps/
 ├── users/          Identity — autenticación, perfil, JWT, admin de usuarios
 ├── authorization/  RBAC — roles, permisos, guards DRF
+├── audit/          Auditoría — registro inmutable de eventos del sistema
 └── playground/     Endpoints de prueba para validar RBAC
 ```
 
@@ -265,8 +266,12 @@ apps/users/services.py                57      2    96%   39-40
 apps/users/selectors.py                7      0   100%
 apps/users/filters.py                 10      0   100%
 apps/users/views.py                  166      6    96%
+apps/audit/models.py                  30      0   100%
+apps/audit/services.py                45      0   100%
+apps/audit/selectors.py               10      0   100%
+apps/audit/views.py                   55      2    96%
 ----------------------------------------------------------------
-TOTAL                                720    130    82%
+TOTAL                                810    130    84%
 ```
 
 **La cobertura de código es obligatoria.** Todo código nuevo debe incluir tests.
@@ -298,6 +303,17 @@ TOTAL                                720    130    82%
 │   │   └── management/
 │   │       └── commands/
 │   │           └── seed_authorization.py
+│   ├── audit/                  Auditoría extensible (OCP)
+│   │   ├── models.py           BaseAuditLog (abstract) + AuditLog
+│   │   ├── services.py         log_action() / log_failure() — fail-silent
+│   │   ├── selectors.py        Consultas de lectura
+│   │   ├── serializers.py      AuditLogSerializer (solo lectura)
+│   │   ├── filters.py          Filtros: action, resource, status, user_id, fecha, correlation_id
+│   │   ├── views.py            AuditLogListView / AuditLogDetailView
+│   │   ├── urls.py             GET /api/audit/logs/ + GET /api/audit/logs/{id}/
+│   │   └── tests/
+│   │       ├── unit/           test_models.py, test_services.py
+│   │       └── api/            test_audit_logs.py
 │   └── playground/             Endpoints de ejemplo para validar RBAC
 ├── config/
 │   ├── settings/
@@ -319,6 +335,7 @@ TOTAL                                720    130    82%
 │   │   └── prod.sh / prod.ps1
 │   └── tools/
 ├── docs/                       Documentación técnica de módulos y endpoints
+│   └── scripts/                Referencia técnica de todos los scripts
 ├── postman/                    Colección Postman lista para importar
 ├── docker-compose.dev.yaml
 ├── docker-compose.test.yaml
@@ -508,8 +525,9 @@ El entrypoint de producción (`scripts/container/start_prod.sh`) ejecuta `collec
 | [`docs/users-admin-api.md`](docs/users-admin-api.md) | Panel de administración de usuarios |
 | [`docs/authentication-module-summary.md`](docs/authentication-module-summary.md) | Estado del módulo users |
 | [`docs/frontend-integration-guide.md`](docs/frontend-integration-guide.md) | Guía de integración para frontend |
-| [`postman/`](postman/) | Colección Postman lista para importar |
-| `http://localhost:8000/api/docs/` | Swagger UI interactivo (solo en dev) |
+| [`docs/scripts/scripts-internos.md`](docs/scripts/scripts-internos.md) | Referencia técnica de todos los scripts del proyecto |
+| [`postman/`](postman/) | Colección Postman lista para importar (auth, admin usuarios, auditoría, RBAC) |
+| `http://localhost:8000/api/docs/` | Swagger UI interactivo — todos los endpoints (solo en dev) |
 
 ## 🚀 Inicio Rápido
 

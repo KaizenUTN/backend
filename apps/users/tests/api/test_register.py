@@ -162,8 +162,8 @@ class TestRegisterEndpoint:
             'email': 'test@example.com',
             'first_name': 'Test',
             'last_name': 'User',
-            'password': '123',
-            'password_confirm': '123'
+            'password': '123',  # NOSONAR
+            'password_confirm': '123'  # NOSONAR
         }
         
         response = api_client.post(self.url, data, format='json')

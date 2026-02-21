@@ -224,7 +224,13 @@ __marimo__/
 *.ctl
 
 # Documentation
-docs/
+docs/*
 
 # Postman collections (local testing only — not committed to the repo)
 postman/
+
+!docs/authentication-api.md
+!docs/users-admin-api.md
+!docs/authentication-module-summary.md
+!docs/frontend-integration-guide.md
+!docs/scripts
