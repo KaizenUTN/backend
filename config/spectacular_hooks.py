@@ -19,3 +19,20 @@ def exclude_playground(endpoints: list, **kwargs) -> list:
         for path, path_regex, method, callback in endpoints
         if not path.startswith("/api/playground/")
     ]
+
+
+_EXCLUDED_PATHS = {
+    "/api/auth/refresh/",           # TokenRefreshView — genera el grupo "auth" en Swagger
+    "/api/authorization/me/permissions/",  # MyPermissionsView — genera "RBAC — Introspección"
+}
+
+
+def exclude_internal_endpoints(endpoints: list, **kwargs) -> list:
+    """
+    Excluye endpoints internos/técnicos que no deben exponerse en la documentación pública.
+    """
+    return [
+        (path, path_regex, method, callback)
+        for path, path_regex, method, callback in endpoints
+        if path not in _EXCLUDED_PATHS
+    ]

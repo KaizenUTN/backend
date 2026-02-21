@@ -179,6 +179,7 @@ SPECTACULAR_SETTINGS = {
     ],
     'PREPROCESSING_HOOKS': [
         'config.spectacular_hooks.exclude_playground',
+        'config.spectacular_hooks.exclude_internal_endpoints',
     ],
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,

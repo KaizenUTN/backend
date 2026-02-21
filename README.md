@@ -59,6 +59,7 @@ Backend API REST con autenticación JWT, control de acceso basado en roles (RBAC
 | Docker | 24+ |
 | Docker Compose | v2 (incluido en Docker Desktop) |
 | Git | cualquier versión reciente |
+| Python | 3.12+ |
 
 No se requiere Python, pip ni PostgreSQL instalados localmente. Todo corre dentro del contenedor.
 
