@@ -12,6 +12,8 @@ urlpatterns = [
     path("", include("apps.authorization.urls")),
     # Auditoría del sistema
     path("", include("apps.audit.urls")),
+    # Brokerage
+    path("", include("apps.brokerage.urls")),
     # Playground (endpoints de prueba)
     path("", include("apps.playground.urls")),
 ]

@@ -12,7 +12,7 @@ class UserManager(DjangoUserManager):
     se deriva automáticamente del email.
     """
 
-    def _create_user(self, email: str, password: str | None, **extra_fields):
+    def _create_user(self, email: str | None, password: str | None, **extra_fields):
         if not email:
             raise ValueError("El email es obligatorio.")
         email = self.normalize_email(email)
@@ -22,12 +22,12 @@ class UserManager(DjangoUserManager):
         user.save(using=self._db)
         return user
 
-    def create_user(self, email=None, password=None, **extra_fields):  # type: ignore[override]
+    def create_user(self, email: str | None = None, password: str | None = None, **extra_fields):  # type: ignore[override]
         extra_fields.setdefault("is_staff", False)
         extra_fields.setdefault("is_superuser", False)
         return self._create_user(email, password, **extra_fields)
 
-    def create_superuser(self, email=None, password=None, **extra_fields):  # type: ignore[override]
+    def create_superuser(self, email: str | None = None, password: str | None = None, **extra_fields):  # type: ignore[override]
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         if not extra_fields.get("is_staff"):

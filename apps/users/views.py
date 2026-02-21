@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
+from apps.audit.services import log_action, log_failure
 from .models import User
 from .serializers import (
     LoginSerializer,
@@ -136,12 +137,14 @@ def login_view(request):
         # Generate JWT tokens
         refresh: RefreshToken = RefreshToken.for_user(user)  # type: ignore[assignment]
         
+        log_action(user=user, action="user.login", resource="user", resource_id=str(user.pk))
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
     
+    log_failure(user=None, action="user.login", resource="user", metadata={"email": request.data.get("email", "")})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -242,6 +245,7 @@ def register_view(request):
         # Generate JWT tokens
         refresh: RefreshToken = RefreshToken.for_user(user)  # type: ignore[assignment]
         
+        log_action(user=user, action="user.registered", resource="user", resource_id=str(user.pk), metadata={"email": user.email})
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
@@ -331,6 +335,7 @@ def logout_view(request):
         token = RefreshToken(refresh_token)
         token.blacklist()
         
+        log_action(user=request.user, action="user.logout", resource="user", resource_id=str(request.user.pk))
         return Response(
             {'message': 'Successfully logged out'},
             status=status.HTTP_200_OK
@@ -349,7 +354,7 @@ def logout_view(request):
 
 @extend_schema(
     methods=['GET'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Obtener perfil del usuario autenticado',
     description=(
         'Retorna los datos del perfil del usuario actualmente autenticado.\n\n'
@@ -385,7 +390,7 @@ def logout_view(request):
 )
 @extend_schema(
     methods=['PUT'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Actualizar perfil completo',
     description=(
         'Actualiza completamente los datos del perfil del usuario autenticado.\n\n'
@@ -424,7 +429,7 @@ def logout_view(request):
 )
 @extend_schema(
     methods=['PATCH'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Actualizar perfil parcialmente',
     description=(
         'Actualiza uno o más campos del perfil del usuario autenticado sin necesidad '
@@ -465,39 +470,44 @@ def logout_view(request):
 )
 @api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
-def profile_view(request):
+def get_profile(request):
     """
-    Get or update user profile
-    GET /api/auth/profile/ - Returns current user data
-    PUT/PATCH /api/auth/profile/ - Updates current user data
-    Body for update: {"first_name": "John", "last_name": "Doe"}
+    GET        /api/auth/profile/ — Retorna el perfil del usuario autenticado.
+    PUT/PATCH  /api/auth/profile/ — Actualiza campos del perfil (email inmutable).
     """
-    user = request.user
-    
     if request.method == 'GET':
-        serializer = UserSerializer(user)
+        serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    elif request.method in ['PUT', 'PATCH']:
-        # Prevent email changes: always keep the user's current email
-        data = request.data.copy()
-        data['email'] = user.email
-        
-        serializer = UserSerializer(
-            user,
-            data=data,
-            partial=(request.method == 'PATCH')
-        )
-        
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # PUT / PATCH
+    user = request.user
+    data = request.data.copy()
+    data['email'] = user.email  # email is immutable
+
+    serializer = UserSerializer(
+        user,
+        data=data,
+        partial=(request.method == 'PATCH'),
+    )
+
+    if serializer.is_valid():
+        serializer.save()
+        log_action(
+            user=user,
+            action="user.profile_updated",
+            resource="user",
+            resource_id=str(user.pk),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def update_profile(request):  # kept for backwards-compat import; delegates to get_profile
+    return get_profile(request)
 
 @extend_schema(
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Cambiar contraseña',
     description=(
         'Permite al usuario autenticado cambiar su contraseña actual por una nueva.\n\n'
@@ -581,6 +591,7 @@ def change_password_view(request):
     
     if serializer.is_valid():
         serializer.save()
+        log_action(user=request.user, action="user.password_changed", resource="user", resource_id=str(request.user.pk))
         return Response(
             {'message': 'Password changed successfully'},
             status=status.HTTP_200_OK
@@ -607,7 +618,7 @@ from .serializers import (
     AdminUserSerializer,
 )
 
-_admin_tag = ['👥 Administración de Usuarios']
+_admin_tag = ['Usuarios']
 
 _user_example = {
     'id': 5,
@@ -754,6 +765,7 @@ class UserListCreateView(APIView):
         except Exception as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        log_action(user=request.user, action="user.created", resource="user", resource_id=str(user.pk), metadata={"email": user.email})
         return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -839,6 +851,7 @@ class UserDetailUpdateView(APIView):
             last_name=data.get('last_name'),
             role_id=data.get('role_id'),
         )
+        log_action(user=request.user, action="user.updated", resource="user", resource_id=str(user.pk), metadata={"email": user.email})
         return Response(AdminUserSerializer(user).data)
 
 
@@ -883,6 +896,7 @@ class UserDeactivateView(APIView):
             return Response({'detail': 'El usuario ya está desactivado.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = deactivate_user(user=user)
+        log_action(user=request.user, action="user.deactivated", resource="user", resource_id=str(user.pk), metadata={"email": user.email})
         return Response(AdminUserSerializer(user).data)
 
 
@@ -936,6 +950,7 @@ class UserResetPasswordView(APIView):
             return Response({'detail': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
 
         temp_password = reset_password(user=user)
+        log_action(user=request.user, action="user.password_reset", resource="user", resource_id=str(user.pk), metadata={"email": user.email})
         return Response({
             'temp_password': temp_password,
             'user': AdminUserSerializer(user).data,

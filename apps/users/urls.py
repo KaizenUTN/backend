@@ -5,7 +5,8 @@ from .views import (
     login_view,
     register_view,
     logout_view,
-    profile_view,
+    get_profile,
+    update_profile,
     change_password_view,
     # Admin de usuarios
     UserListCreateView,
@@ -24,7 +25,7 @@ urlpatterns = [
     path('auth/register/',        register_view,                  name='register'),
     path('auth/logout/',          logout_view,                    name='logout'),
     path('auth/refresh/',         TokenRefreshView.as_view(),     name='token_refresh'),
-    path('auth/profile/',         profile_view,                   name='profile'),
+    path('auth/profile/',         get_profile,                    name='profile'),
     path('auth/change-password/', change_password_view,           name='change_password'),
 
     # ------------------------------------------------------------------

@@ -234,3 +234,6 @@ postman/
 !docs/authentication-module-summary.md
 !docs/frontend-integration-guide.md
 !docs/scripts
+!docs/product-overview.md
+
+contexto/*
