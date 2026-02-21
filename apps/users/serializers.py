@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ObjectDoesNotExist
-from typing import cast
+from django.core.exceptions import ObjectDoesNotExist, ValidationError as DjangoValidationError
+from typing import Any, cast
 
 from .models import User
 
@@ -82,14 +82,15 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_password(self, value):
         # Construye un usuario temporal para que UserAttributeSimilarityValidator
         # pueda comparar la contraseña con email/first_name/last_name.
+        initial = cast(dict[str, Any], self.initial_data)
         partial_user = User(
-            email=self.initial_data.get('email', ''),
-            first_name=self.initial_data.get('first_name', ''),
-            last_name=self.initial_data.get('last_name', ''),
+            email=initial.get('email', ''),
+            first_name=initial.get('first_name', ''),
+            last_name=initial.get('last_name', ''),
         )
         try:
             validate_password(value, user=partial_user)
-        except Exception as exc:
+        except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages)
         return value
 
@@ -174,7 +175,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context['request'].user
         try:
             validate_password(value, user=user)
-        except Exception as exc:
+        except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages)
         return value
     

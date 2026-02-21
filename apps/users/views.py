@@ -354,7 +354,7 @@ def logout_view(request):
 
 @extend_schema(
     methods=['GET'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Obtener perfil del usuario autenticado',
     description=(
         'Retorna los datos del perfil del usuario actualmente autenticado.\n\n'
@@ -390,7 +390,7 @@ def logout_view(request):
 )
 @extend_schema(
     methods=['PUT'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Actualizar perfil completo',
     description=(
         'Actualiza completamente los datos del perfil del usuario autenticado.\n\n'
@@ -429,7 +429,7 @@ def logout_view(request):
 )
 @extend_schema(
     methods=['PATCH'],
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Actualizar perfil parcialmente',
     description=(
         'Actualiza uno o más campos del perfil del usuario autenticado sin necesidad '
@@ -503,7 +503,7 @@ def profile_view(request):
 
 
 @extend_schema(
-    tags=['Perfil de usuario'],
+    tags=['Perfil'],
     summary='Cambiar contraseña',
     description=(
         'Permite al usuario autenticado cambiar su contraseña actual por una nueva.\n\n'
@@ -614,7 +614,7 @@ from .serializers import (
     AdminUserSerializer,
 )
 
-_admin_tag = ['👥 Administración de Usuarios']
+_admin_tag = ['Usuarios']
 
 _user_example = {
     'id': 5,

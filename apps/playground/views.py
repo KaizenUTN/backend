@@ -1,4 +1,4 @@
-"""
+﻿"""
 playground.views
 ================
 Endpoints de prueba para validar el sistema de autenticación y autorización RBAC.
@@ -93,7 +93,7 @@ class PublicView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        tags=["🧪 Playground — A. Sin autenticación"],
+        tags=["Playground"],
         summary="Endpoint público (sin token)",
         description=(
             "Responde a **cualquier usuario**, autenticado o no.\n\n"
@@ -136,7 +136,7 @@ class AnonymousInfoView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        tags=["🧪 Playground — A. Sin autenticación"],
+        tags=["Playground"],
         summary="¿Quién llama? (público)",
         description=(
             "Endpoint público que **informa el estado de autenticación** del solicitante.\n\n"
@@ -197,7 +197,7 @@ class AuthenticatedOnlyView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=["🧪 Playground — B. Solo autenticación"],
+        tags=["Playground"],
         summary="Solo usuarios autenticados (cualquier rol)",
         description=(
             "Responde a cualquier usuario con un **JWT válido**, "
@@ -247,7 +247,7 @@ class PermisoConciliacionRun(APIView):
     permission_classes = [IsAuthenticated, HasPermission("conciliacion.run")]
 
     @extend_schema(
-        tags=["🧪 Playground — C. HasPermission (permiso único)"],
+        tags=["Playground"],
         summary="Requiere: conciliacion.run",
         description=(
             "Acepta usuarios cuyo rol incluya el permiso `conciliacion.run`.\n\n"
@@ -272,7 +272,7 @@ class PermisoConciliacionExport(APIView):
     permission_classes = [IsAuthenticated, HasPermission("conciliacion.export")]
 
     @extend_schema(
-        tags=["🧪 Playground — C. HasPermission (permiso único)"],
+        tags=["Playground"],
         summary="Requiere: conciliacion.export",
         description=(
             "Acepta usuarios cuyo rol incluya el permiso `conciliacion.export`.\n\n"
@@ -297,7 +297,7 @@ class PermisoReportesExport(APIView):
     permission_classes = [IsAuthenticated, HasPermission("reportes.export")]
 
     @extend_schema(
-        tags=["🧪 Playground — C. HasPermission (permiso único)"],
+        tags=["Playground"],
         summary="Requiere: reportes.export",
         description=(
             "Acepta usuarios cuyo rol incluya el permiso `reportes.export`.\n\n"
@@ -319,7 +319,7 @@ class PermisoUsuariosDelete(APIView):
     permission_classes = [IsAuthenticated, HasPermission("usuarios.delete")]
 
     @extend_schema(
-        tags=["🧪 Playground — C. HasPermission (permiso único)"],
+        tags=["Playground"],
         summary="Requiere: usuarios.delete  ← solo Administrador",
         description=(
             "Solo accesible para el rol **Administrador** "
@@ -346,7 +346,7 @@ class PermisoAdminFull(APIView):
     permission_classes = [IsAuthenticated, HasPermission("admin.full")]
 
     @extend_schema(
-        tags=["🧪 Playground — C. HasPermission (permiso único)"],
+        tags=["Playground"],
         summary="Requiere: admin.full  ← solo Administrador",
         description=(
             "Permiso de mayor nivel del sistema. Solo el rol **Administrador** lo posee.\n\n"
@@ -376,7 +376,7 @@ class PermisoOrView(APIView):
     permission_classes = [IsAuthenticated, HasAnyPermission("conciliacion.view", "reportes.view")]
 
     @extend_schema(
-        tags=["🧪 Playground — D. HasAnyPermission (lógica OR)"],
+        tags=["Playground"],
         summary="Requiere: conciliacion.view OR reportes.view",
         description=(
             "Acepta usuarios que tengan **al menos uno** de los dos permisos.\n\n"
@@ -434,7 +434,7 @@ class PermisoOrRestrictivoView(APIView):
     permission_classes = [IsAuthenticated, HasAnyPermission("conciliacion.export", "admin.full")]
 
     @extend_schema(
-        tags=["🧪 Playground — D. HasAnyPermission (lógica OR)"],
+        tags=["Playground"],
         summary="Requiere: conciliacion.export OR admin.full  ← solo Administrador",
         description=(
             "Ejemplo de OR **restrictivo**: los dos permisos son de nivel alto, "
@@ -479,7 +479,7 @@ class PermisoAndView(APIView):
     permission_classes = [IsAuthenticated, HasAllPermissions("conciliacion.run", "reportes.export")]
 
     @extend_schema(
-        tags=["🧪 Playground — E. HasAllPermissions (lógica AND)"],
+        tags=["Playground"],
         summary="Requiere: conciliacion.run AND reportes.export",
         description=(
             "Acepta usuarios que tengan **ambos** permisos simultáneamente.\n\n"
@@ -537,7 +537,7 @@ class PermisoAndAdminView(APIView):
     permission_classes = [IsAuthenticated, HasAllPermissions("usuarios.create", "usuarios.delete")]
 
     @extend_schema(
-        tags=["🧪 Playground — E. HasAllPermissions (lógica AND)"],
+        tags=["Playground"],
         summary="Requiere: usuarios.create AND usuarios.delete  ← solo Administrador",
         description=(
             "Ejemplo extremo de AND: requiere dos permisos de gestión de usuarios "
@@ -576,7 +576,7 @@ class WhoAmIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=["🧪 Playground — F. Introspección"],
+        tags=["Playground"],
         summary="¿Quién soy? ¿Qué puedo hacer?",
         description=(
             "Retorna el perfil completo del usuario autenticado junto con su rol "
@@ -697,7 +697,7 @@ class AccessMatrixView(APIView):
     ]
 
     @extend_schema(
-        tags=["🧪 Playground — F. Introspección"],
+        tags=["Playground"],
         summary="Matriz de acceso — qué endpoints puedo usar",
         description=(
             "Evalúa **en tiempo real** qué permisos del sistema tiene el usuario "
@@ -773,3 +773,4 @@ class AccessMatrixView(APIView):
             "tiene": tiene,
             "no_tiene": no_tiene,
         })
+

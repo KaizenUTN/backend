@@ -136,86 +136,67 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     'TITLE': 'KaizenUTN API',
     'DESCRIPTION': (
-        'REST API para el sistema KaizenUTN.\n\n'
-
+        'API REST del sistema KaizenUTN. Autenticación JWT, control de acceso por roles (RBAC) y auditoría de eventos.\n\n'
         '---\n\n'
-
-        '## 🔐 Módulo Identity — Autenticación JWT\n\n'
-        'Gestiona el ciclo de vida de sesiones mediante **JSON Web Tokens (JWT)** '
-        'con la librería `djangorestframework-simplejwt`.\n\n'
-        '### Flujo de autenticación\n'
-        '1. **Registrarse** → `POST /api/auth/register/` — crea cuenta y retorna tokens.\n'
-        '2. **Iniciar sesión** → `POST /api/auth/login/` — retorna `access` + `refresh` token.\n'
-        '3. **Usar la API** → incluir `Authorization: Bearer <access_token>` en cada request protegido.\n'
-        '4. **Renovar token** → `POST /api/auth/refresh/` cuando el `access` expire (60 min).\n'
-        '5. **Cerrar sesión** → `POST /api/auth/logout/` invalida el `refresh` token (blacklist).\n\n'
-        '### Endpoints de Identity\n'
-        '| Endpoint | Método | Auth | Descripción |\n'
-        '|----------|--------|------|-------------|\n'
-        '| `/api/auth/register/` | POST | ❌ | Registro de nuevo usuario |\n'
-        '| `/api/auth/login/` | POST | ❌ | Inicio de sesión |\n'
-        '| `/api/auth/logout/` | POST | ✅ | Cierre de sesión (blacklist refresh token) |\n'
-        '| `/api/auth/refresh/` | POST | ❌ | Renovar access token con refresh token |\n'
-        '| `/api/auth/profile/` | GET/PUT/PATCH | ✅ | Ver y editar perfil propio |\n'
-        '| `/api/auth/change-password/` | POST | ✅ | Cambiar contraseña |\n\n'
-
-        '---\n\n'
-
-        '## 🛡️ Módulo Authorization — RBAC (Role-Based Access Control)\n\n'
-        'Sistema de autorización desacoplado del módulo Identity. Determina **qué puede hacer** '
-        'cada usuario, independientemente de cómo se autenticó.\n\n'
-        '### Arquitectura\n'
-        '```\n'
-        'Usuario  ──FK──►  Rol  ──M2M──►  Permiso\n'
-        '                  (name)          (code, description)\n'
-        '```\n\n'
-        '- Un usuario tiene **un rol** (ForeignKey, on_delete=PROTECT).\n'
-        '- Un rol puede tener **N permisos** (ManyToMany).\n'
-        '- Los códigos de permiso siguen la convención `<dominio>.<acción>`, ej: `conciliacion.run`.\n\n'
-        '### Roles del sistema\n'
-        '| Rol | Permisos incluidos |\n'
-        '|-----|--------------------|\n'
-        '| **Operador** | `conciliacion.view`, `reportes.view`, `dashboard.view` — asignado automáticamente al registrarse |\n'
-        '| **Administrador** | Todos los permisos del sistema (11 permisos) |\n\n'
-        '### Clases de permiso DRF disponibles\n'
-        '| Clase | Lógica | Ejemplo de uso |\n'
-        '|-------|--------|----------------|\n'
-        '| `HasPermission("x")` | Requiere el permiso `x` | Operaciones con permiso único |\n'
-        '| `HasAnyPermission("x", "y")` | Requiere `x` **OR** `y` | Recursos compartidos entre roles |\n'
-        '| `HasAllPermissions("x", "y")` | Requiere `x` **AND** `y` | Operaciones críticas, máxima granularidad |\n\n'
-        '### Propiedad clave — Cambio de rol en tiempo real\n'
-        'El módulo **consulta la base de datos en cada request** (`user.role.permissions.filter(code=...).exists()`). '
-        'Cambiar el rol de un usuario en el panel admin surte efecto en el siguiente request '
-        'sin necesidad de revocar ni renovar tokens JWT.\n\n'
-        '### Endpoints de Authorization\n'
-        '| Endpoint | Método | Permiso requerido | Clase usada |\n'
-        '|----------|--------|-------------------|-------------|\n'
-        '| `/api/authorization/me/permissions/` | GET | Solo autenticado | — |\n'
-        '| `/api/authorization/conciliacion/run/` | POST | `conciliacion.run` | `HasPermission` |\n'
-        '| `/api/authorization/conciliacion/` | GET | `conciliacion.view` | `HasPermission` |\n'
-        '| `/api/authorization/dashboard/` | GET | `dashboard.view` OR `admin.full` | `HasAnyPermission` |\n'
-        '| `/api/authorization/admin/panel/` | GET | `admin.read` AND `admin.write` | `HasAllPermissions` |\n\n'
-
-        '---\n\n'
-
-        '## 📋 Cómo usar el Swagger interactivo\n\n'
-        '1. Ir a `POST /api/auth/login/` e ingresar credenciales.\n'
+        '## Cómo autenticarse\n\n'
+        '1. Ejecutar `POST /api/auth/login/` con email y contraseña.\n'
         '2. Copiar el valor del campo `access` de la respuesta.\n'
-        '3. Hacer click en el botón **Authorize 🔒** (arriba a la derecha).\n'
-        '4. Ingresar `Bearer <access_token>` en el campo `bearerAuth`.\n'
-        '5. Ahora todos los endpoints marcados con 🔒 usarán ese token automáticamente.\n'
+        '3. Hacer click en **Authorize 🔒** (arriba a la derecha) e ingresar `Bearer <access_token>`.\n'
+        '4. Todos los endpoints con el candado usarán ese token automáticamente.\n\n'
+        '> El token `access` expira en **60 minutos**. Renovarlo con `POST /api/auth/refresh/`.\n'
     ),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {
+            'name': 'Autenticación',
+            'description': 'Registro, login, logout y renovación de tokens JWT.',
+        },
+        {
+            'name': 'Perfil',
+            'description': 'Ver y editar el perfil del usuario autenticado. Cambio de contraseña.',
+        },
+        {
+            'name': 'Usuarios',
+            'description': (
+                'Gestión administrativa de cuentas: listar, crear, editar, desactivar y resetear contraseña.\n\n'
+                '| Permiso requerido | Operación |\n'
+                '|-------------------|-----------|\n'
+                '| `usuarios.view` | Listar / Ver |\n'
+                '| `usuarios.create` | Crear |\n'
+                '| `usuarios.edit` | Editar / Reset contraseña |\n'
+                '| `usuarios.delete` | Desactivar |'
+            ),
+        },
+        {
+            'name': 'Auditoría',
+            'description': (
+                'Consulta del historial inmutable de eventos del sistema.\n\n'
+                'Requiere permiso `auditoria.view` (rol Administrador).'
+            ),
+        },
+        {
+            'name': 'Playground',
+            'description': (
+                'Endpoints de prueba para validar el sistema RBAC.\n\n'
+                '**No usar en producción.** Cubren los escenarios:\n'
+                '- Sin autenticación (público)\n'
+                '- Solo autenticación (JWT válido, sin permiso adicional)\n'
+                '- `HasPermission` — permiso único requerido\n'
+                '- `HasAnyPermission` — lógica OR entre dos permisos\n'
+                '- `HasAllPermissions` — lógica AND entre dos permisos\n'
+                '- Introspección — quién soy y qué puedo hacer'
+            ),
+        },
+    ],
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'persistAuthorization': True,
         'displayOperationId': False,
-        'defaultModelsExpandDepth': 2,
+        'defaultModelsExpandDepth': 1,
         'defaultModelExpandDepth': 2,
-        'docExpansion': 'list',
+        'docExpansion': 'none',
         'filter': True,
-        'tagsSorter': 'alpha',
     },
     'COMPONENT_SPLIT_REQUEST': True,
     'SORT_OPERATIONS': False,

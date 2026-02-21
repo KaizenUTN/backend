@@ -46,6 +46,8 @@ Backend API REST con autenticación JWT, control de acceso basado en roles (RBAC
 - **Separación lectura/escritura**: `selectors.py` para queries, `services.py` para mutaciones.
 - **Fail-closed**: cualquier decisión de autorización no resuelta devuelve `403`.
 
+
+
 ---
 
 ## 2. Requisitos
@@ -524,6 +526,7 @@ El entrypoint de producción (`scripts/container/start_prod.sh`) ejecuta `collec
 | Documento | Contenido |
 |-----------|-----------|
 | [`docs/product-overview.md`](docs/product-overview.md) | **Visión general del producto** — qué hace la plataforma, sin tecnicismos |
+
 | [`docs/authentication-api.md`](docs/authentication-api.md) | Endpoints de autenticación JWT |
 | [`docs/users-admin-api.md`](docs/users-admin-api.md) | Panel de administración de usuarios |
 | [`docs/authentication-module-summary.md`](docs/authentication-module-summary.md) | Estado del módulo users |
