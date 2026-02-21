@@ -335,7 +335,9 @@ TOTAL                                810    130    84%
 │   │   └── prod.sh / prod.ps1
 │   └── tools/
 ├── docs/                       Documentación técnica de módulos y endpoints
-│   └── scripts/                Referencia técnica de todos los scripts
+│   └── scripts/                Referencia técnica y guías de scripts
+│       ├── scripts-internos.md
+│       └── guia-migraciones.md
 ├── postman/                    Colección Postman lista para importar
 ├── docker-compose.dev.yaml
 ├── docker-compose.test.yaml
@@ -526,8 +528,8 @@ El entrypoint de producción (`scripts/container/start_prod.sh`) ejecuta `collec
 | [`docs/authentication-module-summary.md`](docs/authentication-module-summary.md) | Estado del módulo users |
 | [`docs/frontend-integration-guide.md`](docs/frontend-integration-guide.md) | Guía de integración para frontend |
 | [`docs/scripts/scripts-internos.md`](docs/scripts/scripts-internos.md) | Referencia técnica de todos los scripts del proyecto |
-| [`postman/`](postman/) | Colección Postman lista para importar (auth, admin usuarios, auditoría, RBAC) |
-| `http://localhost:8000/api/docs/` | Swagger UI interactivo — todos los endpoints (solo en dev) |
+| [`docs/scripts/guia-migraciones.md`](docs/scripts/guia-migraciones.md) | Guía de migraciones: makemigrations vs migrate, flujo y escenarios frecuentes |
+
 
 ## 🚀 Inicio Rápido
 
@@ -572,7 +574,4 @@ docker-compose -f docker-compose.test.yaml up --build
 docker-compose -f docker-compose.prod.yaml up -d --build
 ```
 
-## 📚 Documentación
-
-Ver [docs/comandos-ambientes.md](docs/comandos-ambientes.md) para la guía completa de comandos.
 

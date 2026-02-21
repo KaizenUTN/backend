@@ -62,7 +62,6 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
         required=True,
-        validators=[validate_password],
         style={'input_type': 'password'}
     )
     password_confirm = serializers.CharField(
@@ -70,7 +69,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         required=True,
         style={'input_type': 'password'}
     )
-    
+
     class Meta:
         model = User
         fields = ['email', 'first_name', 'last_name',
@@ -79,7 +78,21 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
         }
-    
+
+    def validate_password(self, value):
+        # Construye un usuario temporal para que UserAttributeSimilarityValidator
+        # pueda comparar la contraseña con email/first_name/last_name.
+        partial_user = User(
+            email=self.initial_data.get('email', ''),
+            first_name=self.initial_data.get('first_name', ''),
+            last_name=self.initial_data.get('last_name', ''),
+        )
+        try:
+            validate_password(value, user=partial_user)
+        except Exception as exc:
+            raise serializers.ValidationError(exc.messages)
+        return value
+
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({
@@ -134,7 +147,6 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(
         required=True,
         write_only=True,
-        validators=[validate_password],
         style={'input_type': 'password'}
     )
     new_password_confirm = serializers.CharField(
@@ -154,6 +166,16 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context['request'].user
         if not user.check_password(value):
             raise serializers.ValidationError('Old password is incorrect.')
+        return value
+
+    def validate_new_password(self, value):
+        # Pasa el usuario real para que UserAttributeSimilarityValidator
+        # compare la nueva contraseña con email/nombre/apellido del usuario.
+        user = self.context['request'].user
+        try:
+            validate_password(value, user=user)
+        except Exception as exc:
+            raise serializers.ValidationError(exc.messages)
         return value
     
     def save(self, **kwargs):
