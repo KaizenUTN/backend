@@ -38,7 +38,7 @@ jobs:
 
       # ── 5. Subir reporte de cobertura ────────────────────────────────────
       - name: Subir cobertura a Codecov
-        uses: codecov/codecov-action@6671740ac38dd9b0130fbe1cec585b89eea48d3de
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
         if: always()
         with:
           files: coverage.xml
