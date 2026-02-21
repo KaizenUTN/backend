@@ -145,30 +145,41 @@ Se ejecutan desde tu máquina (fuera del contenedor). Orquestan Docker Compose.
 
 ### `dev.sh` / `dev.ps1`
 
-**Propósito:** Levantar o detener el entorno de desarrollo.
+**Propósito:** Levantar, detener y operar el entorno de desarrollo.
 
 | Comando Linux | Comando Windows | Comportamiento |
 |---|---|---|
 | `bash scripts/host/dev.sh` | `.\scripts\host\dev.ps1` | Foreground — logs visibles en esta terminal |
 | `bash scripts/host/dev.sh -d` | `.\scripts\host\dev.ps1 -Mode bg` | Background — libera la terminal |
 | `bash scripts/host/dev.sh --down` | `.\scripts\host\dev.ps1 -Mode down` | Para y elimina los contenedores |
+| *(no disponible)* | `.\scripts\host\dev.ps1 -Mode migrate` | Genera y aplica migraciones dentro del contenedor |
+| *(no disponible)* | `.\scripts\host\dev.ps1 -Mode shell` | Abre bash dentro del contenedor activo |
 
 **Qué hace en cada modo:**
 
 ```bash
-# Foreground (default)
+# Foreground (default) — muestra los logs del contenedor en tiempo real
 docker-compose -f docker-compose.dev.yaml up --build
 
-# Background (-d / bg)
+# Background (bg) — libera la terminal
 docker-compose -f docker-compose.dev.yaml up --build -d
 
-# Detener (--down / down)
+# Detener (down)
 docker-compose -f docker-compose.dev.yaml down
+
+# Migrate — genera archivos de migración y los aplica (solo Windows PowerShell)
+docker-compose -f docker-compose.dev.yaml exec web python manage.py makemigrations
+docker-compose -f docker-compose.dev.yaml exec web python manage.py migrate
+
+# Shell — abre bash interactivo dentro del contenedor
+docker-compose -f docker-compose.dev.yaml exec web bash
 ```
 
 **Servicios que levanta:**
 - `web` → Django en `localhost:8000`
 - `db` → PostgreSQL en `localhost:5432`
+
+> Ver [guia-migraciones.md](guia-migraciones.md) para entender cuándo y cómo gestionar migraciones.
 
 ---
 
@@ -228,31 +239,41 @@ exit $EXIT_CODE   # 0 = todos pasan, 1 = alguno falla
 
 ### `migrate.sh`
 
-**Propósito:** Ejecutar migraciones manualmente con el settings correcto.
+**Propósito:** Gestionar migraciones de Django desde el host vía settings.
 
-**Uso:**
-```bash
-bash scripts/host/migrate.sh         # ambiente dev (default)
-bash scripts/host/migrate.sh prod    # ambiente prod
-bash scripts/host/migrate.sh test    # ambiente test
-```
+| Comando | Comportamiento |
+|---|---|
+| `bash scripts/host/migrate.sh` | Aplica migraciones pendientes (dev) |
+| `bash scripts/host/migrate.sh --make` | Genera archivos + aplica (dev) |
+| `bash scripts/host/migrate.sh --make prod` | Genera archivos + aplica (prod) |
+| `bash scripts/host/migrate.sh --show` | Muestra estado de todas las migraciones |
 
-**Qué hace internamente:**
+**Qué hace internamente según la acción:**
+
 ```bash
-ENVIRONMENT=${1:-dev}
-export DJANGO_SETTINGS_MODULE=config.settings.$ENVIRONMENT
+# --apply (default)
+export DJANGO_SETTINGS_MODULE=config.settings.dev
 python manage.py migrate
+
+# --make
+python manage.py makemigrations   # genera archivos
+python manage.py migrate          # aplica
+
+# --show
+python manage.py showmigrations   # lista estado (✓ aplicada, [ ] pendiente)
 ```
 
 **Cuándo usarlo:**
-- Después de crear o modificar un modelo (`makemigrations` + este script)
-- Después de `git pull` con migraciones nuevas en el repo
-- Sin necesidad de reiniciar el servidor (si ya está corriendo)
+- `--apply` — después de `git pull` con migraciones nuevas del equipo
+- `--make` — después de modificar o crear un modelo
+- `--show` — para inspeccionar el estado antes de un deploy
 
-> Para correr `makemigrations` dentro del contenedor activo:
-> ```bash
-> docker-compose -f docker-compose.dev.yaml exec web python manage.py makemigrations
+> Para el mismo flujo desde **Windows PowerShell**:
+> ```powershell
+> .\scripts\host\dev.ps1 -Mode migrate
 > ```
+>
+> Ver [guia-migraciones.md](guia-migraciones.md) para la explicación completa del flujo.
 
 ---
 
@@ -327,17 +348,19 @@ python scripts/tools/test_auth_api.py
 
 ### Flujo diario de desarrollo
 
-```bash
+```powershell
 # Levantar entorno
 .\scripts\host\dev.ps1
 
 # Después de modificar modelos: generar + aplicar migración
-docker-compose -f docker-compose.dev.yaml exec web python manage.py makemigrations
-bash scripts/host/migrate.sh
+.\scripts\host\dev.ps1 -Mode migrate
+git add apps/*/migrations/          # commitear los archivos generados
 
 # Correr tests antes de hacer commit
 .\scripts\host\test.ps1
 ```
+
+> Ver [guia-migraciones.md](guia-migraciones.md) para entender por qué `makemigrations` no está en el startup del contenedor.
 
 ### Antes de un PR
 

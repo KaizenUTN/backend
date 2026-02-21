@@ -72,15 +72,19 @@ INVALID_EMAIL_DATA = [
 ]
 
 
-# Passwords that Django's built-in validators actually reject:
-# MinimumLengthValidator rejects < 8 chars
-# NumericPasswordValidator rejects entirely numeric strings
-# Note: Django does NOT require mixed case by default
+# Passwords that validators reject:
+# MinimumLengthValidator   — < 10 chars
+# NumericPasswordValidator — entirely numeric
+# PasswordComplexityValidator — missing uppercase / lowercase / digit / special char
 WEAK_PASSWORDS = [
-    'short',    # Too short (< 8 chars)
-    'abc',      # Too short
-    '12345678', # Entirely numeric
-    '00000000', # Entirely numeric
+    'short',              # Too short (< 10 chars)
+    'abc',               # Too short
+    '1234567890',        # Entirely numeric
+    '0000000000',        # Entirely numeric
+    'alllowercase1!',    # No uppercase
+    'ALLUPPERCASE1!',    # No lowercase
+    'NoDigitsHere!',     # No number
+    'NoSpecialChars1A',  # No special character
 ]
 
 

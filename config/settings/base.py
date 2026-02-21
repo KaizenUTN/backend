@@ -93,16 +93,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 AUTH_PASSWORD_VALIDATORS = [
     {
+        # No puede ser demasiado similar al email, nombre o apellido
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'OPTIONS': {'max_similarity': 0.7},
     },
     {
+        # Mínimo 10 caracteres
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 10},
     },
     {
+        # No puede ser una contraseña de uso común (lista de 20.000)
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
+        # No puede ser completamente numérica
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        # Al menos: 1 mayúscula, 1 minúscula, 1 número y 1 carácter especial
+        'NAME': 'apps.users.validators.PasswordComplexityValidator',
     },
 ]
 
