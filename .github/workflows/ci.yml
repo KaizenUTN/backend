@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests & Coverage (Python 3.12)
+    runs-on: ubuntu-latest
+
+    env:
+      # Tests usan SQLite in-memory — no se necesita Postgres
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      PYTHONPATH: .
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # ── 2. Python ────────────────────────────────────────────────────────
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # ── 3. Dependencias ──────────────────────────────────────────────────
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # ── 4. Tests con cobertura ───────────────────────────────────────────
+      - name: Ejecutar tests
+        run: python -m pytest --cov=apps --cov-report=xml --cov-report=term-missing -q
+
+      # ── 5. Subir reporte de cobertura ────────────────────────────────────
+      - name: Subir cobertura a Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      # ── 6. Análisis SonarQube Cloud ──────────────────────────────────────
+      - name: Analizar con SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
