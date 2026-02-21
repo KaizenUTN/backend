@@ -41,7 +41,7 @@ class TestGetUserById:
 
         with django_assert_num_queries(1):
             result = get_user_by_id(user.pk)
-            _ = result.role.name  # acceso al FK — no debe generar query extra
+            _ = result.role.name  # type: ignore[union-attr]  # acceso al FK — no debe generar query extra
 
 
 # ---------------------------------------------------------------------------

@@ -36,7 +36,7 @@ class TestCreateUser:
             email='nuevo@example.com',
             first_name='Ana',
             last_name='García',
-            password='SecurePass123!',
+            password='SecurePass123!',  # noqa: S106 # NOSONAR
         )
 
         assert user.pk is not None
@@ -50,7 +50,7 @@ class TestCreateUser:
             email='hash@example.com',
             first_name='H',
             last_name='H',
-            password='SecurePass123!',
+            password='SecurePass123!',  # noqa: S106 # NOSONAR
         )
         assert user.check_password('SecurePass123!')
         # El campo password almacena el hash, no el texto plano
@@ -61,7 +61,7 @@ class TestCreateUser:
             email='juanperez@example.com',
             first_name='Juan',
             last_name='Pérez',
-            password='SecurePass456!',
+            password='SecurePass456!',  # noqa: S106 # NOSONAR
         )
         assert user.username.startswith('juanperez')
 
@@ -72,7 +72,7 @@ class TestCreateUser:
                 email='dup@example.com',
                 first_name='X',
                 last_name='Y',
-                password='SecurePass123!',
+                password='SecurePass123!',  # noqa: S106 # NOSONAR
             )
 
     def test_weak_password_raises(self):
@@ -81,7 +81,7 @@ class TestCreateUser:
                 email='weak@example.com',
                 first_name='W',
                 last_name='P',
-                password='123',
+                password='123',  # noqa: S106 # NOSONAR
             )
 
     def test_can_set_role(self, role_operador):
@@ -89,7 +89,7 @@ class TestCreateUser:
             email='withrole@example.com',
             first_name='R',
             last_name='R',
-            password='SecurePass123!',
+            password='SecurePass123!',  # noqa: S106 # NOSONAR
             role_id=role_operador.pk,
         )
         assert user.role_id == role_operador.pk
@@ -99,7 +99,7 @@ class TestCreateUser:
             email='inactive@example.com',
             first_name='I',
             last_name='I',
-            password='SecurePass123!',
+            password='SecurePass123!',  # noqa: S106 # NOSONAR
             is_active=False,
         )
         assert user.is_active is False
@@ -115,7 +115,7 @@ class TestCreateUser:
             email='maria@other.com',
             first_name='Maria',
             last_name='B',
-            password='SecurePass123!',
+            password='SecurePass123!',  # noqa: S106 # NOSONAR
         )
         assert user2.username.startswith('maria')
         assert user2.username != 'maria'

@@ -53,7 +53,7 @@ class TestExamplePatterns:
         assert user.email
         
         # The 'api_client' fixture provides an API client
-        response = api_client.get('/api/auth/profile/')
+        _ = api_client.get('/api/auth/profile/')
         # Note: This will fail without auth - use authenticated_client instead
     
     # PATTERN 2: Using authenticated fixtures
@@ -79,7 +79,7 @@ class TestExamplePatterns:
         assert user.email == 'john@example.com'
         
         # Create multiple users
-        users = UserFactory.create_batch(5)
+        UserFactory.create_batch(5)
         assert User.objects.count() == 6  # 5 batch + 1 above
         
         # Create admin user
@@ -157,8 +157,8 @@ class TestExamplePatterns:
             'email': 'workflow@example.com',
             'first_name': 'Work',
             'last_name': 'Flow',
-            'password': 'SecurePass123!',
-            'password_confirm': 'SecurePass123!'
+            'password': 'SecurePass123!',  # NOSONAR
+            'password_confirm': 'SecurePass123!'  # NOSONAR
         }
         
         register_response = api_client.post(
@@ -192,10 +192,10 @@ class TestExamplePatterns:
     def test_using_create_user_fixture(self, create_user, api_client):
         """Example: Using the create_user fixture factory."""
         # create_user is a fixture that returns a function
-        user = create_user(
+        _user = create_user(
             username='customuser',
             email='custom@example.com',
-            password='CustomPass123!'
+            password='CustomPass123!'  # NOSONAR
         )
         
         # Login with the custom user
@@ -203,7 +203,7 @@ class TestExamplePatterns:
             '/api/auth/login/',
             {
                 'email': 'custom@example.com',
-                'password': 'CustomPass123!'
+                'password': 'CustomPass123!'  # NOSONAR
             },
             format='json'
         )
