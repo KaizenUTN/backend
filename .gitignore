@@ -235,3 +235,5 @@ postman/
 !docs/frontend-integration-guide.md
 !docs/scripts
 !docs/product-overview.md
+
+contexto/*

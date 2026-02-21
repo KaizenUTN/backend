@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.authorization',
     'apps.audit',
+    'apps.brokerage',
     'apps.playground',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -175,19 +176,9 @@ SPECTACULAR_SETTINGS = {
                 'Requiere permiso `auditoria.view` (rol Administrador).'
             ),
         },
-        {
-            'name': 'Playground',
-            'description': (
-                'Endpoints de prueba para validar el sistema RBAC.\n\n'
-                '**No usar en producción.** Cubren los escenarios:\n'
-                '- Sin autenticación (público)\n'
-                '- Solo autenticación (JWT válido, sin permiso adicional)\n'
-                '- `HasPermission` — permiso único requerido\n'
-                '- `HasAnyPermission` — lógica OR entre dos permisos\n'
-                '- `HasAllPermissions` — lógica AND entre dos permisos\n'
-                '- Introspección — quién soy y qué puedo hacer'
-            ),
-        },
+    ],
+    'PREPROCESSING_HOOKS': [
+        'config.spectacular_hooks.exclude_playground',
     ],
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,

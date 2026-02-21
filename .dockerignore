@@ -1,6 +1,58 @@
-.venv
-__pycache__
-*.pyc
-db.sqlite3
-.env
+# ===============================
+# Git
+# ===============================
 .git
+.gitignore
+.github
+
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+pytest_cache/
+.pytest_cache/
+
+# ===============================
+# Environment files (MUY IMPORTANTE)
+# ===============================
+.env*
+!.env.example
+
+# ===============================
+# Coverage
+# ===============================
+coverage.xml
+htmlcov/
+.coverage*
+.coveragerc
+
+# ===============================
+# Logs y media (no deben ir en imagen)
+# ===============================
+logs/
+media/
+
+# ===============================
+# IDE
+# ===============================
+.vscode/
+.idea/
+
+# ===============================
+# Docs y Postman (si no son necesarios en prod)
+# ===============================
+docs/
+postman/
+
+# ===============================
+# Docker files (no necesitan estar dentro de la imagen)
+# ===============================
+docker-compose*.yaml
+Dockerfile.*
+
+# Sonar
+sonar-project.properties

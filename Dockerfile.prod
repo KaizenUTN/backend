@@ -1,36 +1,56 @@
-# Dockerfile for Production
+# ===============================
+# Stage 1 - Builder
+# ===============================
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --upgrade pip
+RUN pip install --prefix=/install -r requirements.txt
+
+
+# ===============================
+# Stage 2 - Final Image
+# ===============================
 FROM python:3.12-slim
 
-# Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=config.settings.prod
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Only runtime deps
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    postgresql-client \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
 
 # Copy project
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p logs staticfiles media
+# Create non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN chown -R appuser:appgroup /app
 
-# Collect static files
-RUN python manage.py collectstatic --noinput --settings=config.settings.prod || true
+USER appuser
 
-# Expose port
+# Collect static (mejor hacerlo en CI, pero si querés dejarlo acá)
+RUN python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
-# Run Gunicorn
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "60", "--access-logfile", "logs/access.log", "--error-logfile", "logs/error.log"]
+CMD ["gunicorn", "config.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "3", \
+     "--timeout", "60", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

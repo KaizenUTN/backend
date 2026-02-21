@@ -470,37 +470,41 @@ def logout_view(request):
 )
 @api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
-def profile_view(request):
+def get_profile(request):
     """
-    Get or update user profile
-    GET /api/auth/profile/ - Returns current user data
-    PUT/PATCH /api/auth/profile/ - Updates current user data
-    Body for update: {"first_name": "John", "last_name": "Doe"}
+    GET        /api/auth/profile/ — Retorna el perfil del usuario autenticado.
+    PUT/PATCH  /api/auth/profile/ — Actualiza campos del perfil (email inmutable).
     """
-    user = request.user
-    
     if request.method == 'GET':
-        serializer = UserSerializer(user)
+        serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    elif request.method in ['PUT', 'PATCH']:
-        # Prevent email changes: always keep the user's current email
-        data = request.data.copy()
-        data['email'] = user.email
-        
-        serializer = UserSerializer(
-            user,
-            data=data,
-            partial=(request.method == 'PATCH')
-        )
-        
-        if serializer.is_valid():
-            serializer.save()
-            log_action(user=request.user, action="user.profile_updated", resource="user", resource_id=str(request.user.pk))
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # PUT / PATCH
+    user = request.user
+    data = request.data.copy()
+    data['email'] = user.email  # email is immutable
+
+    serializer = UserSerializer(
+        user,
+        data=data,
+        partial=(request.method == 'PATCH'),
+    )
+
+    if serializer.is_valid():
+        serializer.save()
+        log_action(
+            user=user,
+            action="user.profile_updated",
+            resource="user",
+            resource_id=str(user.pk),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def update_profile(request):  # kept for backwards-compat import; delegates to get_profile
+    return get_profile(request)
 
 @extend_schema(
     tags=['Perfil'],
