@@ -523,12 +523,13 @@ El entrypoint de producción (`scripts/container/start_prod.sh`) ejecuta `collec
 
 | Documento | Contenido |
 |-----------|-----------|
+| [`docs/product-overview.md`](docs/product-overview.md) | **Visión general del producto** — qué hace la plataforma, sin tecnicismos |
 | [`docs/authentication-api.md`](docs/authentication-api.md) | Endpoints de autenticación JWT |
 | [`docs/users-admin-api.md`](docs/users-admin-api.md) | Panel de administración de usuarios |
 | [`docs/authentication-module-summary.md`](docs/authentication-module-summary.md) | Estado del módulo users |
 | [`docs/frontend-integration-guide.md`](docs/frontend-integration-guide.md) | Guía de integración para frontend |
 | [`docs/scripts/scripts-internos.md`](docs/scripts/scripts-internos.md) | Referencia técnica de todos los scripts del proyecto |
-| [`docs/scripts/guia-migraciones.md`](docs/scripts/guia-migraciones.md) | Guía de migraciones: makemigrations vs migrate, flujo y escenarios frecuentes |
+
 
 
 ## 🚀 Inicio Rápido

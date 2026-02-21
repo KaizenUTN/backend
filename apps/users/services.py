@@ -83,8 +83,6 @@ def create_user(
     validate_password(password, user)
     user.set_password(password)
     user.save()
-
-    # TODO: AuditService.log("user.created", actor=request.user, target=user)
     return user
 
 
@@ -117,7 +115,6 @@ def update_user(
     if len(fields) > 1:
         user.save(update_fields=fields)
 
-    # TODO: AuditService.log("user.updated", actor=request.user, target=user)
     return user
 
 
@@ -133,7 +130,6 @@ def deactivate_user(*, user: User) -> User:
     user.token_version += 1
     user.save(update_fields=['is_active', 'token_version', 'updated_at'])
 
-    # TODO: AuditService.log("user.deactivated", actor=request.user, target=user)
     return user
 
 
@@ -153,5 +149,4 @@ def reset_password(*, user: User) -> str:
     user.save(update_fields=['password', 'token_version', 'updated_at'])
 
     # TODO: NotificationService.send_temp_password(user=user, password=temp_password)
-    # TODO: AuditService.log("user.password_reset", actor=request.user, target=user)
     return temp_password
