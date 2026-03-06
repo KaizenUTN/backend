@@ -45,7 +45,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.authorization',
     'apps.audit',
-    'apps.brokerage',
+    'apps.trading',
     'apps.playground',
     'rest_framework',
     'rest_framework_simplejwt',

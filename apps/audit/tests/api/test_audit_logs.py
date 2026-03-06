@@ -229,7 +229,7 @@ class TestAuditLogListView:
         assert ids.index(log1.pk) < ids.index(log2.pk)
 
     def test_empty_list_when_no_logs(self, auditor_client):
-        AuditLog.objects.all().delete()
+        # No se crean logs → la DB de test está vacía por aislamiento de transacción
         response = auditor_client.get(LIST_URL)
         assert response.status_code == status.HTTP_200_OK
         assert response.data == []

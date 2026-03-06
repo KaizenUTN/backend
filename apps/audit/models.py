@@ -42,6 +42,26 @@ from django.db import models
 
 
 # ---------------------------------------------------------------------------
+# QuerySet y Manager inmutables
+# ---------------------------------------------------------------------------
+
+
+class ImmutableQuerySet(models.QuerySet):
+    """QuerySet que bloquea cualquier operación de escritura masiva."""
+
+    def update(self, **kwargs):
+        raise PermissionError("Los registros de auditoría son inmutables. No se permite update() en bulk.")
+
+    def delete(self):
+        raise PermissionError("Los registros de auditoría son inmutables. No se permite delete() en bulk.")
+
+
+class ImmutableManager(models.Manager):
+    def get_queryset(self):
+        return ImmutableQuerySet(self.model, using=self._db)
+
+
+# ---------------------------------------------------------------------------
 # Choices de estado
 # ---------------------------------------------------------------------------
 
@@ -166,10 +186,35 @@ class BaseAuditLog(models.Model):
             models.Index(fields=["user", "timestamp"], name="%(app_label)s_%(class)s_user_ts_idx"),
         ]
 
+    objects = ImmutableManager()
+
     def __str__(self) -> str:
         user_id = getattr(self, "user_id", None)
         actor = f"user:{user_id}" if user_id else "anonymous"
         return f"[{self.timestamp}] {self.action} on {self.resource} by {actor} — {self.status}"
+
+    # ------------------------------------------------------------------
+    # Inmutabilidad — los registros de auditoría NUNCA se modifican
+    # ------------------------------------------------------------------
+
+    def save(self, *args, **kwargs) -> None:
+        """
+        Permite la creación (INSERT) pero bloquea cualquier modificación (UPDATE).
+        Un log de auditoría es un registro histórico inmutable.
+        """
+        if self.pk is not None:
+            raise PermissionError(
+                f"Los registros de auditoría son inmutables. "
+                f"No se puede modificar {self.__class__.__name__} (pk={self.pk})."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs) -> None:
+        """Bloquea la eliminación individual de cualquier registro de auditoría."""
+        raise PermissionError(
+            f"Los registros de auditoría son inmutables. "
+            f"No se puede eliminar {self.__class__.__name__} (pk={self.pk})."
+        )
 
 
 # ---------------------------------------------------------------------------
