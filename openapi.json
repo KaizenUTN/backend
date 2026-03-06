@@ -1,0 +1,3271 @@
+openapi: 3.0.3
+info:
+  title: KaizenUTN API
+  version: 1.0.0
+  description: |
+    API REST del sistema KaizenUTN. Autenticación JWT, control de acceso por roles (RBAC) y auditoría de eventos.
+
+    ---
+
+    ## Cómo autenticarse
+
+    1. Ejecutar `POST /api/auth/login/` con email y contraseña.
+    2. Copiar el valor del campo `access` de la respuesta.
+    3. Hacer click en **Authorize 🔒** (arriba a la derecha) e ingresar `Bearer <access_token>`.
+    4. Todos los endpoints con el candado usarán ese token automáticamente.
+
+    > El token `access` expira en **60 minutos**. Renovarlo con `POST /api/auth/refresh/`.
+paths:
+  /api/auth/login/:
+    post:
+      operationId: api_auth_login_create
+      description: |-
+        Autentica a un usuario registrado con email y contraseña.
+
+        **Retorna** un par de tokens JWT (`access` + `refresh`) junto con los datos básicos del usuario.
+
+        - El token `access` debe incluirse en el header `Authorization: Bearer <token>` en todas las peticiones protegidas.
+        - El token `access` expira en **60 minutos**.
+        - El token `refresh` expira en **7 días** y sirve para renovar el `access` token sin necesidad de volver a iniciar sesión.
+
+        **Errores comunes:**
+        - `400` — Email o contraseña incorrectos.
+        - `400` — El usuario está inactivo.
+      summary: Iniciar sesión
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              EjemploDeLogin:
+                value:
+                  email: john@example.com
+                  password: securePassword123
+                summary: Ejemplo de login
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              examples:
+                LoginExitoso:
+                  value:
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    user:
+                      id: 1
+                      email: john@example.com
+                      first_name: John
+                      last_name: Doe
+                      full_name: John Doe
+                      is_active: true
+                      created_at: '2025-01-01T00:00:00Z'
+                      updated_at: '2025-01-01T00:00:00Z'
+                  summary: Login exitoso
+          description: Login exitoso. Retorna tokens JWT y datos del usuario.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                CredencialesInválidas:
+                  value:
+                    non_field_errors:
+                    - Invalid email or password.
+                  summary: Credenciales inválidas
+          description: Credenciales inválidas o usuario inactivo.
+  /api/auth/register/:
+    post:
+      operationId: api_auth_register_create
+      description: |-
+        Crea una nueva cuenta de usuario en el sistema.
+
+        **Retorna** un par de tokens JWT (`access` + `refresh`) junto con los datos del usuario recién creado, permitiendo un inicio de sesión inmediato tras el registro.
+
+        **Validaciones aplicadas:**
+        - `email` debe ser único y tener formato válido.
+        - `first_name` y `last_name` son obligatorios.
+        - `password` debe cumplir las políticas de Django: mínimo 8 caracteres, no puede ser completamente numérica, no puede ser demasiado común.
+        - `password` y `password_confirm` deben coincidir.
+
+        **Errores comunes:**
+        - `400` — El email ya está en uso.
+        - `400` — Las contraseñas no coinciden.
+        - `400` — La contraseña no cumple los requisitos de seguridad.
+      summary: Registrar nuevo usuario
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              EjemploDeRegistro:
+                value:
+                  email: jane@example.com
+                  first_name: Jane
+                  last_name: Doe
+                  password: securePassword123
+                  password_confirm: securePassword123
+                summary: Ejemplo de registro
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              examples:
+                RegistroExitoso:
+                  value:
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    user:
+                      id: 2
+                      email: jane@example.com
+                      first_name: Jane
+                      last_name: Doe
+                      full_name: Jane Doe
+                      is_active: true
+                      created_at: '2025-06-01T12:00:00Z'
+                      updated_at: '2025-06-01T12:00:00Z'
+                  summary: Registro exitoso
+          description: Registro exitoso. Retorna tokens JWT y datos del usuario creado.
+        '400':
+          description: Datos de registro inválidos.
+  /api/auth/logout/:
+    post:
+      operationId: api_auth_logout_create
+      description: |-
+        Invalida el `refresh` token del usuario, cerrando efectivamente la sesión.
+
+        El token es agregado a la **blacklist** de SimpleJWT, por lo que no podrá usarse nuevamente para obtener nuevos `access` tokens, incluso si aún no ha expirado.
+
+        > ⚠️ **Importante:** El cliente también debe eliminar los tokens almacenados localmente (localStorage, cookies, etc.) al recibir la respuesta `200`.
+
+        **Requiere autenticación:** Header `Authorization: Bearer <access_token>`
+
+        **Errores comunes:**
+        - `400` — No se proporcionó el refresh token.
+        - `400` — El refresh token es inválido o ya expiró.
+        - `401` — No se proporcionó el access token en el header.
+      summary: Cerrar sesión
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+            examples:
+              EjemploDeLogout:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                summary: Ejemplo de logout
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                LogoutExitoso:
+                  value:
+                    message: Successfully logged out
+                  summary: Logout exitoso
+          description: Sesión cerrada correctamente.
+        '400':
+          description: Refresh token no proporcionado o inválido.
+        '401':
+          description: No autenticado. Access token no proporcionado.
+  /api/auth/profile/:
+    patch:
+      operationId: api_auth_profile_partial_update
+      description: |-
+        Actualiza uno o más campos del perfil del usuario autenticado sin necesidad de enviar todos los campos.
+
+        **Requiere autenticación:** Header `Authorization: Bearer <access_token>`
+
+        > ℹ️ **Nota:** El campo `email` no puede modificarse a través de este endpoint.
+
+        **Campos actualizables:** `first_name`, `last_name`
+
+        **Errores comunes:**
+        - `400` — Datos de validación inválidos.
+        - `401` — No autenticado o token expirado.
+      summary: Actualizar perfil parcialmente
+      tags:
+      - Perfil
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfilePatchRequestRequest'
+            examples:
+              ActualizaciónParcial:
+                value:
+                  first_name: Jonathan
+                summary: Actualización parcial
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfilePatchRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfilePatchRequestRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: Perfil actualizado parcialmente.
+        '400':
+          description: Datos de validación inválidos.
+        '401':
+          description: No autenticado o token expirado.
+    get:
+      operationId: api_auth_profile_retrieve
+      description: |-
+        Retorna los datos del perfil del usuario actualmente autenticado.
+
+        **Requiere autenticación:** Header `Authorization: Bearer <access_token>`
+
+        Los campos retornados incluyen información básica del perfil y metadatos de auditoría (`created_at`, `updated_at`).
+
+        **Errores comunes:**
+        - `401` — No autenticado o token expirado.
+      summary: Obtener perfil del usuario autenticado
+      tags:
+      - Perfil
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                PerfilDelUsuario:
+                  value:
+                    id: 1
+                    email: john@example.com
+                    first_name: John
+                    last_name: Doe
+                    full_name: John Doe
+                    is_active: true
+                    created_at: '2025-01-01T00:00:00Z'
+                    updated_at: '2025-06-01T10:30:00Z'
+                  summary: Perfil del usuario
+          description: Datos del perfil del usuario.
+        '401':
+          description: No autenticado o token expirado.
+    put:
+      operationId: api_auth_profile_update
+      description: |-
+        Actualiza completamente los datos del perfil del usuario autenticado.
+
+        **Requiere autenticación:** Header `Authorization: Bearer <access_token>`
+
+        > ℹ️ **Nota:** El campo `email` no puede modificarse a través de este endpoint. Aunque se envíe en el body, será ignorado y se conservará el email actual.
+
+        Con `PUT` todos los campos son requeridos (excepto email). Para actualizaciones parciales usar `PATCH`.
+
+        **Campos actualizables:** `first_name`, `last_name`
+
+        **Errores comunes:**
+        - `400` — Datos de validación inválidos.
+        - `401` — No autenticado o token expirado.
+      summary: Actualizar perfil completo
+      tags:
+      - Perfil
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequestRequest'
+            examples:
+              ActualizaciónCompleta:
+                value:
+                  first_name: John
+                  last_name: Smith
+                summary: Actualización completa
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: Perfil actualizado correctamente.
+        '400':
+          description: Datos de validación inválidos.
+        '401':
+          description: No autenticado o token expirado.
+  /api/auth/change-password/:
+    post:
+      operationId: api_auth_change_password_create
+      description: |-
+        Permite al usuario autenticado cambiar su contraseña actual por una nueva.
+
+        **Requiere autenticación:** Header `Authorization: Bearer <access_token>`
+
+        **Proceso de validación:**
+        1. Se verifica que `old_password` coincida con la contraseña actual del usuario.
+        2. Se valida que `new_password` cumpla las políticas de seguridad de Django.
+        3. Se verifica que `new_password` y `new_password_confirm` coincidan.
+
+        **Políticas de contraseña:**
+        - Mínimo 8 caracteres.
+        - No puede ser completamente numérica.
+        - No puede ser una contraseña demasiado común (ej: "password123").
+        - No puede ser demasiado similar al nombre de usuario o email.
+
+        > ⚠️ **Importante:** Tras cambiar la contraseña se recomienda cerrar sesión (`/api/auth/logout/`) e iniciar sesión nuevamente para obtener tokens frescos.
+
+        **Errores comunes:**
+        - `400` — La contraseña actual es incorrecta.
+        - `400` — Las nuevas contraseñas no coinciden.
+        - `400` — La nueva contraseña no cumple los requisitos de seguridad.
+        - `401` — No autenticado o token expirado.
+      summary: Cambiar contraseña
+      tags:
+      - Perfil
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            examples:
+              CambioDeContraseña:
+                value:
+                  old_password: currentPassword123
+                  new_password: newSecurePass456
+                  new_password_confirm: newSecurePass456
+                summary: Cambio de contraseña
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                CambioExitoso:
+                  value:
+                    message: Password changed successfully
+                  summary: Cambio exitoso
+          description: Contraseña cambiada exitosamente.
+        '400':
+          description: Datos de validación inválidos.
+        '401':
+          description: No autenticado o token expirado.
+  /api/users/:
+    get:
+      operationId: api_users_retrieve
+      description: |-
+        Retorna la lista paginada de todos los usuarios del sistema.
+
+        **Requiere permiso:** `usuarios.view`
+
+        ### Filtros de query string
+        | Parámetro | Tipo | Descripción |
+        |-----------|------|-------------|
+        | `email` | string | Búsqueda parcial (case-insensitive) |
+        | `role` | integer | ID exacto del rol |
+        | `is_active` | boolean | `true` / `false` |
+        | `search` | string | Búsqueda en email, nombre y apellido |
+        | `ordering` | string | `created_at`, `-created_at`, `email`, `last_name` |
+        | `page` | integer | Número de página (tamaño: 10) |
+
+        ### Ejemplo de request
+        ```
+        GET /api/users/?is_active=true&ordering=-created_at&page=1
+        ```
+      summary: Listar usuarios
+      tags:
+      - Usuarios
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminUser'
+              examples:
+                ListaPaginada:
+                  value:
+                  - count: 1
+                    next: null
+                    previous: null
+                    results:
+                    - id: 5
+                      email: maria@empresa.com
+                      first_name: María
+                      last_name: González
+                      full_name: María González
+                      role: 1
+                      role_name: Operador
+                      is_active: true
+                      created_at: '2025-06-01T12:00:00Z'
+                      updated_at: '2025-06-01T12:00:00Z'
+                  summary: Lista paginada
+          description: Lista paginada de usuarios.
+        '403':
+          description: Sin permiso `usuarios.view`.
+    post:
+      operationId: api_users_create
+      description: |-
+        Crea un nuevo usuario desde el panel de administración.
+
+        **Requiere permiso:** `usuarios.create`
+
+        A diferencia del registro público (`/api/auth/register/`), permite asignar rol y estado inicial al momento de la creación.
+
+        **Validaciones:**
+        - `email` debe ser único.
+        - `password` debe cumplir las políticas de seguridad de Django.
+        - `role_id` es opcional; si se omite, el usuario queda sin rol.
+      summary: Crear usuario
+      tags:
+      - Usuarios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateUserRequest'
+            examples:
+              CrearUsuario:
+                value:
+                  email: maria@empresa.com
+                  first_name: María
+                  last_name: González
+                  password: SecurePass123!
+                  role_id: 1
+                  is_active: true
+                summary: Crear usuario
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminCreateUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminCreateUserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+              examples:
+                UsuarioCreado:
+                  value:
+                    id: 5
+                    email: maria@empresa.com
+                    first_name: María
+                    last_name: González
+                    full_name: María González
+                    role: 1
+                    role_name: Operador
+                    is_active: true
+                    created_at: '2025-06-01T12:00:00Z'
+                    updated_at: '2025-06-01T12:00:00Z'
+                  summary: Usuario creado
+          description: Usuario creado exitosamente.
+        '400':
+          description: Datos de validación inválidos.
+        '403':
+          description: Sin permiso `usuarios.create`.
+  /api/users/{user_id}/:
+    get:
+      operationId: api_users_retrieve_2
+      description: |-
+        Retorna los datos de un usuario por ID.
+
+        **Requiere permiso:** `usuarios.view`
+      summary: Obtener usuario
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Usuarios
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+              examples:
+                Usuario:
+                  value:
+                    id: 5
+                    email: maria@empresa.com
+                    first_name: María
+                    last_name: González
+                    full_name: María González
+                    role: 1
+                    role_name: Operador
+                    is_active: true
+                    created_at: '2025-06-01T12:00:00Z'
+                    updated_at: '2025-06-01T12:00:00Z'
+          description: ''
+        '404':
+          description: Usuario no encontrado.
+        '403':
+          description: Sin permiso `usuarios.view`.
+    patch:
+      operationId: api_users_partial_update
+      description: |-
+        Actualiza los datos administrativos de un usuario.
+
+        **Requiere permiso:** `usuarios.edit`
+
+        Todos los campos son opcionales (semántica PATCH).
+        Para cambiar contraseña usar `/reset-password/`. Para desactivar usar `/deactivate/`.
+      summary: Editar usuario
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Usuarios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUpdateUserRequest'
+            examples:
+              EditarRol:
+                value:
+                  role_id: 2
+                summary: Editar rol
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUpdateUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUpdateUserRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+              examples:
+                UsuarioActualizado:
+                  value:
+                    id: 5
+                    email: maria@empresa.com
+                    first_name: María
+                    last_name: González
+                    full_name: María González
+                    role: 1
+                    role_name: Operador
+                    is_active: true
+                    created_at: '2025-06-01T12:00:00Z'
+                    updated_at: '2025-06-01T12:00:00Z'
+                  summary: Usuario actualizado
+          description: ''
+        '400':
+          description: Datos de validación inválidos.
+        '404':
+          description: Usuario no encontrado.
+        '403':
+          description: Sin permiso `usuarios.edit`.
+  /api/users/{user_id}/deactivate/:
+    post:
+      operationId: api_users_deactivate_create
+      description: |-
+        Desactiva un usuario (soft delete — `is_active = false`).
+
+        **Requiere permiso:** `usuarios.delete`
+
+        Incrementa `token_version` para invalidar todos los JWTs activos del usuario sin esperar a que expiren naturalmente.
+
+        La cuenta queda en la base de datos y puede reactivarse desde el admin de Django.
+      summary: Desactivar usuario
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Usuarios
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+              examples:
+                Desactivado:
+                  value:
+                    id: 5
+                    email: maria@empresa.com
+                    first_name: María
+                    last_name: González
+                    full_name: María González
+                    role: 1
+                    role_name: Operador
+                    is_active: false
+                    created_at: '2025-06-01T12:00:00Z'
+                    updated_at: '2025-06-01T12:00:00Z'
+          description: Usuario desactivado.
+        '404':
+          description: Usuario no encontrado.
+        '403':
+          description: Sin permiso `usuarios.delete`.
+  /api/users/{user_id}/reset-password/:
+    post:
+      operationId: api_users_reset_password_create
+      description: |-
+        Genera una contraseña temporal aleatoria para el usuario.
+
+        **Requiere permiso:** `usuarios.edit`
+
+        Incrementa `token_version` para invalidar todos los JWTs activos del usuario.
+
+        > ⚠️ La contraseña temporal se retorna en la respuesta **una única vez**. Es responsabilidad del caller comunicarla al usuario de forma segura.
+
+        > 📧 TODO: Integrar envío automático por email.
+      summary: Reset de contraseña
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Usuarios
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+              examples:
+                ResetExitoso:
+                  value:
+                    temp_password: aB3!kX9&
+                    user:
+                      id: 5
+                      email: maria@empresa.com
+                      first_name: María
+                      last_name: González
+                      full_name: María González
+                      role: 1
+                      role_name: Operador
+                      is_active: true
+                      created_at: '2025-06-01T12:00:00Z'
+                      updated_at: '2025-06-01T12:00:00Z'
+                  summary: Reset exitoso
+          description: Contraseña reseteada exitosamente.
+        '404':
+          description: Usuario no encontrado.
+        '403':
+          description: Sin permiso `usuarios.edit`.
+  /api/authorization/conciliacion/run/:
+    post:
+      operationId: api_authorization_conciliacion_run_create
+      description: |-
+        Inicia el proceso de conciliación automática.
+
+        ### Autorización requerida
+        | Permiso | Descripción |
+        |---------|-------------|
+        | `conciliacion.run` | Ejecutar el proceso de conciliación automática |
+
+        ### Roles que tienen este permiso (configuración inicial)
+        | Rol | ¿Tiene acceso? |
+        |-----|----------------|
+        | Solo Lectura | ❌ No |
+        | Analista | ✅ Sí |
+        | Supervisor | ✅ Sí |
+        | Administrador | ✅ Sí |
+
+        ### Mecanismo de validación
+        1. El JWT del header `Authorization` identifica al usuario.
+        2. `HasPermission('conciliacion.run')` consulta en DB: `user.role.permissions.filter(code='conciliacion.run').exists()`.
+        3. Si el resultado es `False` → respuesta `403` inmediata, sin ejecutar el handler.
+
+        > **Efecto inmediato de cambios de rol:** si el administrador cambia el rol del usuario en la base de datos, el nuevo permiso aplica en el siguiente request sin necesidad de renovar el JWT.
+      summary: Ejecutar conciliación
+      tags:
+      - RBAC — Ejemplos de autorización
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConciliacionRunResponse'
+              examples:
+                Éxito:
+                  value:
+                    status: conciliacion iniciada
+          description: Proceso de conciliación iniciado correctamente.
+        '401':
+          description: |-
+            **No autenticado (401).**
+
+            El header `Authorization: Bearer <access_token>` está ausente, mal formado o el token ha expirado.
+
+            Renovar el token con `POST /api/auth/refresh/` y reintentar.
+        '403':
+          description: |-
+            **Permiso denegado (403).**
+
+            El usuario está autenticado pero su rol no incluye el permiso requerido.
+
+            Esto ocurre cuando:
+            - El usuario no tiene rol asignado.
+            - Su rol existe pero no tiene el permiso necesario.
+
+            El rol se evalúa en tiempo real contra la base de datos; no se requiere rotación de tokens para que los cambios de rol surtan efecto.
+  /api/authorization/conciliacion/:
+    get:
+      operationId: api_authorization_conciliacion_retrieve
+      description: |-
+        Retorna la lista de conciliaciones del sistema.
+
+        ### Autorización requerida
+        | Permiso | Descripción |
+        |---------|-------------|
+        | `conciliacion.view` | Ver resultados y estado de conciliaciones |
+
+        ### Roles que tienen este permiso
+        | Rol | ¿Tiene acceso? |
+        |-----|----------------|
+        | Solo Lectura | ✅ Sí |
+        | Analista | ✅ Sí |
+        | Supervisor | ✅ Sí |
+        | Administrador | ✅ Sí |
+
+        Este endpoint es de **solo lectura**: no modifica estado. Disponible para todos los roles básicos del sistema.
+      summary: Ver conciliaciones
+      tags:
+      - RBAC — Ejemplos de autorización
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConciliacionListResponse'
+              examples:
+                ListaVacía:
+                  value:
+                    conciliaciones: []
+                  summary: Lista vacía
+          description: Lista de conciliaciones.
+        '401':
+          description: |-
+            **No autenticado (401).**
+
+            El header `Authorization: Bearer <access_token>` está ausente, mal formado o el token ha expirado.
+
+            Renovar el token con `POST /api/auth/refresh/` y reintentar.
+        '403':
+          description: |-
+            **Permiso denegado (403).**
+
+            El usuario está autenticado pero su rol no incluye el permiso requerido.
+
+            Esto ocurre cuando:
+            - El usuario no tiene rol asignado.
+            - Su rol existe pero no tiene el permiso necesario.
+
+            El rol se evalúa en tiempo real contra la base de datos; no se requiere rotación de tokens para que los cambios de rol surtan efecto.
+  /api/authorization/dashboard/:
+    get:
+      operationId: api_authorization_dashboard_retrieve
+      description: |-
+        Retorna los widgets del panel principal.
+
+        ### Autorización requerida — `HasAnyPermission` (lógica OR)
+        El usuario necesita **al menos uno** de estos permisos:
+
+        | Permiso | Descripción |
+        |---------|-------------|
+        | `dashboard.view` | Ver el panel de métricas principal |
+        | `admin.full` | Acceso completo al panel de administración |
+
+        ### Roles que tienen acceso
+        | Rol | `dashboard.view` | `admin.full` | ¿Acceso? |
+        |-----|-----------------|--------------|----------|
+        | Solo Lectura | ✅ | ❌ | ✅ |
+        | Analista | ✅ | ❌ | ✅ |
+        | Supervisor | ✅ | ❌ | ✅ |
+        | Administrador | ✅ | ✅ | ✅ |
+
+        ### Cuándo usar `HasAnyPermission`
+        Ideal para recursos compartidos entre distintos roles donde cada rol llega por un camino diferente de permisos. Evita duplicar lógica en múltiples roles.
+      summary: Dashboard principal
+      tags:
+      - RBAC — Ejemplos de autorización
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+              examples:
+                DashboardVacío:
+                  value:
+                    widgets: []
+                  summary: Dashboard vacío
+          description: Widgets del dashboard.
+        '401':
+          description: |-
+            **No autenticado (401).**
+
+            El header `Authorization: Bearer <access_token>` está ausente, mal formado o el token ha expirado.
+
+            Renovar el token con `POST /api/auth/refresh/` y reintentar.
+        '403':
+          description: |-
+            **Permiso denegado (403).**
+
+            El usuario no tiene ni `dashboard.view` ni `admin.full`.
+  /api/authorization/admin/panel/:
+    get:
+      operationId: api_authorization_admin_panel_retrieve
+      description: |-
+        Accede al panel de administración avanzado.
+
+        ### Autorización requerida — `HasAllPermissions` (lógica AND)
+        El usuario necesita **todos** estos permisos simultáneamente:
+
+        | Permiso | Descripción |
+        |---------|-------------|
+        | `admin.read` | Leer configuración y estado del sistema |
+        | `admin.write` | Modificar configuración del sistema |
+
+        Si el usuario tiene solo uno de los dos, recibe `403`.
+
+        ### Cuándo usar `HasAllPermissions`
+        Útil para operaciones críticas (entorno financiero) donde se quiere garantizar que el rol tenga capacidades completas antes de permitir acceso. Permite una granularidad máxima en la asignación de permisos por rol.
+
+        > **Ejemplo:** un rol `Auditor` podría tener `admin.read` pero no `admin.write`, pudiendo ver la configuración sin modificarla.
+      summary: Panel de administración
+      tags:
+      - RBAC — Ejemplos de autorización
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPanelResponse'
+              examples:
+                AccesoConcedido:
+                  value:
+                    panel: ok
+                  summary: Acceso concedido
+          description: Acceso al panel concedido.
+        '401':
+          description: |-
+            **No autenticado (401).**
+
+            El header `Authorization: Bearer <access_token>` está ausente, mal formado o el token ha expirado.
+
+            Renovar el token con `POST /api/auth/refresh/` y reintentar.
+        '403':
+          description: |-
+            **Permiso denegado (403).**
+
+            El usuario no tiene `admin.read` o no tiene `admin.write` (o ninguno).
+  /api/audit/logs/:
+    get:
+      operationId: audit_logs_list
+      description: |-
+        Retorna la lista completa de eventos de auditoría registrados en el sistema, ordenados por defecto del más reciente al más antiguo.
+
+        **Acceso:** JWT válido + permiso `auditoria.view` (rol Administrador). Sin ese permiso se retorna `403`.
+
+        ---
+
+        ### Filtros disponibles
+
+        | Parámetro | Tipo | Coincidencia | Ejemplo |
+        |---|---|---|---|
+        | `action` | string | contiene | `?action=login` |
+        | `resource` | string | contiene | `?resource=user` |
+        | `status` | enum | exacto | `?status=FAILURE` |
+        | `user_id` | int | exacto | `?user_id=5` |
+        | `timestamp__gte` | ISO 8601 | mayor o igual | `?timestamp__gte=2026-02-01T00:00:00Z` |
+        | `timestamp__lte` | ISO 8601 | menor o igual | `?timestamp__lte=2026-02-21T23:59:59Z` |
+        | `correlation_id` | UUID | exacto | `?correlation_id=550e8400-...` |
+
+        Los filtros son acumulables: `?action=login&status=FAILURE&user_id=5` devuelve los logins fallidos del usuario 5.
+
+        ---
+
+        ### Ordenamiento
+
+        Parámetro `ordering`. Valores válidos:
+        - `-timestamp` _(default)_ — más reciente primero
+        - `timestamp` — más antiguo primero
+        - `action`, `-action` — alfabético por nombre de acción
+        - `resource`, `-resource` — alfabético por tipo de recurso
+        - `status`, `-status` — SUCCESS antes que FAILURE (o al revés)
+
+        ---
+
+        ### Seguridad del campo `metadata`
+
+        El campo `metadata` es un JSON libre pero **nunca** contiene contraseñas, tokens, ni PII sensible. Por convención del servicio de escritura, solo se almacena contexto operacional (razón de la acción, valores previos, etc.).
+
+        ---
+
+        ### Formato de `user`
+
+        El campo `user` puede ser `null` para acciones del sistema o eventos anónimos (ej: intentos de login con credenciales inexistentes).
+      summary: Listar logs de auditoría
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+        description: 'Filtrar por nombre de acción (búsqueda parcial). Convención
+          del sistema: `<recurso>.<verbo>`. Ejemplos: `user.login`, `user.deactivated`,
+          `brokerage.client.blocked`.'
+      - in: query
+        name: correlation_id
+        schema:
+          type: string
+        description: 'UUID de correlación exacto. Permite recuperar todos los eventos
+          asociados a una misma operación compuesta (ej: onboarding de usuario que
+          dispara múltiples logs con el mismo `correlation_id`).'
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: 'Campo de ordenamiento. Prefijo `-` para orden descendente. Valores:
+          `timestamp`, `-timestamp` _(default)_, `action`, `-action`, `resource`,
+          `-resource`, `status`, `-status`.'
+      - in: query
+        name: resource
+        schema:
+          type: string
+        description: 'Filtrar por tipo de recurso afectado (búsqueda parcial). Ejemplos:
+          `user`, `brokerage`, `asset`.'
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - FAILURE
+          - SUCCESS
+        description: Filtrar por resultado del evento. `SUCCESS` = operación completada.
+          `FAILURE` = operación rechazada o con error.
+      - in: query
+        name: timestamp__gte
+        schema:
+          type: string
+        description: 'Timestamp mínimo en formato ISO 8601 (UTC recomendado). Retorna
+          eventos desde esta fecha/hora inclusive. Ejemplo: `2026-02-01T00:00:00Z`.'
+      - in: query
+        name: timestamp__lte
+        schema:
+          type: string
+        description: 'Timestamp máximo en formato ISO 8601 (UTC recomendado). Retorna
+          eventos hasta esta fecha/hora inclusive. Ejemplo: `2026-02-21T23:59:59Z`.'
+      - in: query
+        name: user_id
+        schema:
+          type: integer
+        description: Filtrar por ID exacto del usuario que ejecutó la acción. Útil
+          para auditar todas las acciones de un usuario específico.
+      tags:
+      - Auditoría
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+              examples:
+                LoginExitoso:
+                  value:
+                  - id: 1
+                    user:
+                      id: 5
+                      email: admin@kaizen.com
+                    action: user.login
+                    resource: user
+                    resource_id: '5'
+                    status: SUCCESS
+                    status_display: Exitoso
+                    metadata:
+                      method: jwt
+                      ip_country: AR
+                    ip_address: 192.168.1.10
+                    user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+                    timestamp: '2026-02-20T14:32:00Z'
+                    correlation_id: 550e8400-e29b-41d4-a716-446655440000
+                  summary: Evento de autenticación correcta (status=SUCCESS)
+                IntentoDeLoginFallido:
+                  value:
+                  - id: 42
+                    user: null
+                    action: user.login
+                    resource: user
+                    resource_id: null
+                    status: FAILURE
+                    status_display: Fallido
+                    metadata:
+                      reason: invalid_credentials
+                      attempts: 3
+                    ip_address: 203.0.113.77
+                    user_agent: python-requests/2.31.0
+                    timestamp: '2026-02-20T15:01:00Z'
+                    correlation_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+                  summary: Evento de autenticación rechazada (status=FAILURE)
+                DesactivaciónDeUsuario:
+                  value:
+                  - id: 88
+                    user:
+                      id: 1
+                      email: superadmin@kaizen.com
+                    action: user.deactivated
+                    resource: user
+                    resource_id: '12'
+                    status: SUCCESS
+                    status_display: Exitoso
+                    metadata:
+                      reason: inactive_policy
+                      previous_status: ACTIVE
+                    ip_address: 10.0.0.5
+                    user_agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+                    timestamp: '2026-02-21T09:15:00Z'
+                    correlation_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  summary: Evento de gestión administrativa sobre un usuario
+          description: Lista de logs de auditoría. Array vacío `[]` si no hay registros
+            que cumplan los filtros.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditBadFilterResponse'
+          description: Parámetros de filtrado inválidos. El cuerpo incluye los campos
+            con error y los mensajes descriptivos.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditForbiddenResponse'
+          description: Sin permiso `auditoria.view`. Solo usuarios con rol Administrador
+            pueden acceder.
+  /api/audit/logs/{log_id}/:
+    get:
+      operationId: audit_logs_retrieve
+      description: |-
+        Retorna el detalle completo de un registro de auditoría identificado por su `id` interno.
+
+        **Acceso:** JWT válido + permiso `auditoria.view` (rol Administrador).
+
+        ---
+
+        ### Cuándo usar este endpoint
+
+        - **Investigación de incidentes:** cuando tenés el ID de un log específico   y necesitás ver todos sus detalles (metadata completa, user agent, IP).
+        - **Correlación de eventos:** cada log tiene un `correlation_id` (UUID).   Si encontrás este ID en otro sistema o log, podés volver al listado con   `?correlation_id=<uuid>` para recuperar todos los eventos de esa operación.
+        - **Auditoría puntual:** para mostrar el detalle de un evento en un panel   de administración al hacer click en una fila del listado.
+
+        ---
+
+        ### Campos clave de la respuesta
+
+        | Campo | Descripción |
+        |---|---|
+        | `user` | Objeto `{id, email}` o `null` para eventos anónimos/del sistema |
+        | `action` | Acción ejecutada. Convención: `<recurso>.<verbo>` |
+        | `resource` | Tipo de entidad afectada |
+        | `resource_id` | ID de la instancia específica afectada (string o null) |
+        | `status` | `SUCCESS` o `FAILURE` |
+        | `status_display` | Etiqueta legible: `Exitoso` o `Fallido` |
+        | `metadata` | JSON libre con contexto del evento (sin datos sensibles) |
+        | `ip_address` | IP de origen de la request |
+        | `user_agent` | Cliente HTTP que generó el evento |
+        | `timestamp` | Fecha y hora UTC del evento (inmutable) |
+        | `correlation_id` | UUID para correlacionar eventos de una misma operación compuesta |
+
+        **Nota:** los registros de auditoría son inmutables. No existe endpoint para modificar ni eliminar logs.
+      summary: Obtener log de auditoría por ID
+      parameters:
+      - in: path
+        name: log_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Auditoría
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+              examples:
+                LoginExitoso:
+                  value:
+                    id: 1
+                    user:
+                      id: 5
+                      email: admin@kaizen.com
+                    action: user.login
+                    resource: user
+                    resource_id: '5'
+                    status: SUCCESS
+                    status_display: Exitoso
+                    metadata:
+                      method: jwt
+                      ip_country: AR
+                    ip_address: 192.168.1.10
+                    user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+                    timestamp: '2026-02-20T14:32:00Z'
+                    correlation_id: 550e8400-e29b-41d4-a716-446655440000
+                  summary: Evento de autenticación correcta (status=SUCCESS)
+                IntentoDeLoginFallido:
+                  value:
+                    id: 42
+                    user: null
+                    action: user.login
+                    resource: user
+                    resource_id: null
+                    status: FAILURE
+                    status_display: Fallido
+                    metadata:
+                      reason: invalid_credentials
+                      attempts: 3
+                    ip_address: 203.0.113.77
+                    user_agent: python-requests/2.31.0
+                    timestamp: '2026-02-20T15:01:00Z'
+                    correlation_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+                  summary: Evento de autenticación rechazada (status=FAILURE)
+                DesactivaciónDeUsuario:
+                  value:
+                    id: 88
+                    user:
+                      id: 1
+                      email: superadmin@kaizen.com
+                    action: user.deactivated
+                    resource: user
+                    resource_id: '12'
+                    status: SUCCESS
+                    status_display: Exitoso
+                    metadata:
+                      reason: inactive_policy
+                      previous_status: ACTIVE
+                    ip_address: 10.0.0.5
+                    user_agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+                    timestamp: '2026-02-21T09:15:00Z'
+                    correlation_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  summary: Evento de gestión administrativa sobre un usuario
+          description: Detalle completo del log de auditoría.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditForbiddenResponse'
+          description: Sin permiso `auditoria.view`. Solo usuarios con rol Administrador
+            pueden acceder.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditNotFoundResponse'
+          description: No existe ningún log con el `id` proporcionado.
+  /api/trading/clients/:
+    get:
+      operationId: brokerage_clients_list
+      description: |-
+        Retorna la lista completa de clientes registrados en el sistema de brokerage, ordenados alfabéticamente por nombre.
+
+        **¿Qué es un Cliente?**
+        Un cliente es una contraparte operacional identificada por su CUIT (Clave Única de Identificación Tributaria). Puede tratarse de una persona física o jurídica habilitada para realizar operaciones financieras en la plataforma.
+
+        **Estados posibles:**
+        - `ACTIVE` — el cliente puede operar normalmente.
+        - `BLOCKED` — el cliente está suspendido y no puede generar nuevas operaciones.   El historial previo se mantiene intacto.
+
+        **Nota:** este endpoint devuelve todos los clientes sin paginar. Para operaciones de alta escala, se incorporará paginación en una iteración posterior.
+      summary: Listar todos los clientes
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Client'
+              examples:
+                ListaConClientesMixtos:
+                  value:
+                  - - id: 1
+                      cuit: 20-12345678-9
+                      name: Industrias Río de la Plata S.A.
+                      status: ACTIVE
+                      is_active: true
+                      created_at: '2026-02-15T10:30:00Z'
+                    - id: 2
+                      cuit: 30-98765432-1
+                      name: Inversiones del Sur S.R.L.
+                      status: BLOCKED
+                      is_active: false
+                      created_at: '2026-01-10T09:00:00Z'
+                  summary: Respuesta típica con clientes activos y bloqueados
+          description: Lista de clientes. Array vacío `[]` si no hay clientes registrados.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+    post:
+      operationId: brokerage_clients_create
+      description: |-
+        Registra una nueva contraparte operacional en el sistema de brokerage.
+
+        **Reglas de negocio:**
+        - El `cuit` debe ser único en el sistema. Si ya existe un cliente con el mismo   CUIT, se retorna `400` con el detalle del conflicto.
+        - El `cuit` se almacena en el formato ingresado; se recomienda el estándar   argentino `XX-XXXXXXXX-X` (ej: `20-12345678-9`).
+        - El cliente se crea con estado `ACTIVE` de forma automática.
+        - `name` acepta razón social o nombre completo (máx. 200 caracteres).
+
+        **No confundir con el módulo de usuarios:** este endpoint registra una contraparte financiera, no una cuenta de acceso al sistema.
+      summary: Registrar nuevo cliente
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClientCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClientCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+              examples:
+                ClienteActivo:
+                  value:
+                    id: 3
+                    cuit: 20-12345678-9
+                    name: Industrias Río de la Plata S.A.
+                    status: ACTIVE
+                    is_active: true
+                    created_at: '2026-02-15T10:30:00Z'
+                  summary: Respuesta estándar de un cliente operativo
+          description: Cliente creado exitosamente. Se retorna la representación completa.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+  /api/trading/clients/{client_id}/:
+    get:
+      operationId: brokerage_clients_retrieve
+      description: |-
+        Retorna la representación completa de un cliente identificado por su `id` interno.
+
+        Útil para:
+        - Verificar el estado actual de un cliente antes de procesar una operación.
+        - Mostrar datos del cliente en pantallas de detalle o confirmación.
+
+        **Nota:** si necesitas buscar por CUIT en lugar de por ID, usa el listado general y filtrá en el cliente.
+      summary: Obtener detalle de un cliente
+      parameters:
+      - in: path
+        name: client_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+              examples:
+                ClienteActivo:
+                  value:
+                    id: 3
+                    cuit: 20-12345678-9
+                    name: Industrias Río de la Plata S.A.
+                    status: ACTIVE
+                    is_active: true
+                    created_at: '2026-02-15T10:30:00Z'
+                  summary: Respuesta estándar de un cliente operativo
+                ClienteBloqueado:
+                  value:
+                    id: 7
+                    cuit: 30-98765432-1
+                    name: Inversiones del Sur S.R.L.
+                    status: BLOCKED
+                    is_active: false
+                    created_at: '2026-01-10T09:00:00Z'
+                  summary: Cliente cuyo estado es BLOCKED — no puede operar
+          description: Detalle del cliente.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientNotFoundResponse'
+          description: El cliente con el ID proporcionado no existe.
+    patch:
+      operationId: brokerage_clients_partial_update
+      description: |-
+        Actualiza el campo `name` (razón social / nombre completo) de un cliente existente.
+
+        **Campos modificables:**
+        - `name` — nombre o razón social. Máx. 200 caracteres. No puede quedar vacío.
+
+        **Campos inmutables:** `cuit`, `status`, `created_at`. Para cambiar el estado de un cliente usá los endpoints `/block/` y `/unblock/`.
+
+        Este endpoint acepta actualizaciones parciales (`PATCH`): solo los campos enviados son modificados.
+      summary: Actualizar nombre del cliente
+      parameters:
+      - in: path
+        name: client_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+              examples:
+                ClienteActivo:
+                  value:
+                    id: 3
+                    cuit: 20-12345678-9
+                    name: Industrias Río de la Plata S.A.
+                    status: ACTIVE
+                    is_active: true
+                    created_at: '2026-02-15T10:30:00Z'
+                  summary: Respuesta estándar de un cliente operativo
+          description: Cliente actualizado. Se retorna la representación completa
+            con el nuevo nombre.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientNotFoundResponse'
+          description: El cliente con el ID proporcionado no existe.
+  /api/trading/clients/{client_id}/block/:
+    post:
+      operationId: brokerage_clients_block
+      description: |-
+        Cambia el estado del cliente a `BLOCKED`, impidiendo que genere nuevas operaciones.
+
+        **Comportamiento:**
+        - Si el cliente ya está `BLOCKED`, la operación es **idempotente**   (retorna `200` con el estado actual sin generar un error).
+        - El historial de operaciones previas del cliente se mantiene intacto.
+        - No requiere cuerpo en el request (`body` vacío o ausente).
+
+        **Caso de uso típico:** suspensión preventiva por detección de actividad anómala, orden judicial, o incumplimiento de compliance.
+      summary: Bloquear cliente
+      parameters:
+      - in: path
+        name: client_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+              examples:
+                ClienteBloqueado:
+                  value:
+                    id: 7
+                    cuit: 30-98765432-1
+                    name: Inversiones del Sur S.R.L.
+                    status: BLOCKED
+                    is_active: false
+                    created_at: '2026-01-10T09:00:00Z'
+                  summary: Cliente cuyo estado es BLOCKED — no puede operar
+          description: Cliente bloqueado. El campo `status` será `BLOCKED` e `is_active`
+            será `false`.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientNotFoundResponse'
+          description: El cliente con el ID proporcionado no existe.
+  /api/trading/clients/{client_id}/unblock/:
+    post:
+      operationId: brokerage_clients_unblock
+      description: |-
+        Reactiva un cliente bloqueado, restaurando su estado a `ACTIVE` y habilitándolo para generar nuevas operaciones.
+
+        **Comportamiento:**
+        - Si el cliente ya está `ACTIVE`, la operación es **idempotente**   (retorna `200` con el estado actual sin generar un error).
+        - No requiere cuerpo en el request (`body` vacío o ausente).
+
+        **Caso de uso típico:** levantamiento de una suspensión tras resolución de un conflicto de compliance o corrección de datos.
+      summary: Desbloquear cliente
+      parameters:
+      - in: path
+        name: client_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+              examples:
+                ClienteActivo:
+                  value:
+                    id: 3
+                    cuit: 20-12345678-9
+                    name: Industrias Río de la Plata S.A.
+                    status: ACTIVE
+                    is_active: true
+                    created_at: '2026-02-15T10:30:00Z'
+                  summary: Respuesta estándar de un cliente operativo
+          description: Cliente reactivado. El campo `status` será `ACTIVE` e `is_active`
+            será `true`.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientNotFoundResponse'
+          description: El cliente con el ID proporcionado no existe.
+  /api/trading/assets/:
+    get:
+      operationId: brokerage_assets_list
+      description: |-
+        Retorna la lista de activos (instrumentos negociables) registrados en el sistema.
+
+        **¿Qué es un Activo?**
+        Un activo representa un instrumento financiero o criptoactivo identificado por su símbolo de mercado (`code`). Ejemplos: `BTC` (Bitcoin), `ETH` (Ethereum), `USD` (Dólar estadounidense), `ARS` (Peso argentino).
+
+        **Filtro por estado activo:**
+        Pasando `?active=true` se retorna solo los activos habilitados para operar. Sin ese parámetro se retornan todos (activos e inactivos).
+
+        **Ordenamiento:** alfabético por `code`.
+      summary: Listar activos / instrumentos
+      parameters:
+      - in: query
+        name: active
+        schema:
+          type: string
+          enum:
+          - 'true'
+        description: Si se pasa `active=true`, retorna únicamente los activos con
+          `is_active=true`. Omitir este parámetro retorna todos los activos sin filtrar.
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+              examples:
+                ListaCompleta(activosEInactivos):
+                  value:
+                  - - id: 1
+                      code: BTC
+                      name: Bitcoin
+                      is_active: true
+                    - id: 2
+                      code: ETH
+                      name: Ethereum
+                      is_active: true
+                    - id: 3
+                      code: LUNA
+                      name: Terra Luna
+                      is_active: false
+                    - id: 4
+                      code: USDT
+                      name: Tether USD
+                      is_active: true
+                  summary: Lista completa (activos e inactivos)
+                SoloActivos(?active=true):
+                  value:
+                  - - id: 1
+                      code: BTC
+                      name: Bitcoin
+                      is_active: true
+                    - id: 2
+                      code: ETH
+                      name: Ethereum
+                      is_active: true
+                    - id: 4
+                      code: USDT
+                      name: Tether USD
+                      is_active: true
+                  summary: Solo activos (?active=true)
+          description: Lista de activos ordenada por código. Array vacío `[]` si no
+            hay activos.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+    post:
+      operationId: brokerage_assets_create
+      description: |-
+        Registra un nuevo instrumento financiero en el catálogo de activos negociables.
+
+        **Reglas de negocio:**
+        - El `code` (símbolo de mercado) debe ser único. Se convierte a mayúsculas   automáticamente: `btc` → `BTC`.
+        - El `code` identifica el activo en todo el sistema; elegirlo con cuidado ya   que es el identificador de negocio (no el `id` interno).
+        - `name` es opcional y descriptivo (ej: `Bitcoin`, `Ethereum`).   Si se omite queda en blanco.
+        - El activo se crea habilitado (`is_active: true`) de forma automática.
+
+        **Ejemplos de códigos válidos:** `BTC`, `ETH`, `USDT`, `ARS`, `USD`, `AL30`, `GD30`.
+      summary: Registrar nuevo activo
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssetCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssetCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+              examples:
+                ActivoActivo:
+                  value:
+                    id: 1
+                    code: BTC
+                    name: Bitcoin
+                    is_active: true
+                  summary: Instrumento habilitado para operar
+          description: Activo creado exitosamente.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+  /api/trading/assets/{asset_id}/:
+    get:
+      operationId: brokerage_assets_retrieve
+      description: |-
+        Retorna la representación completa de un activo identificado por su `id` interno.
+
+        El campo `is_active` indica si el activo está habilitado para generar nuevas operaciones. Un activo inactivo (`is_active: false`) mantiene su historial de operaciones pero no acepta nuevas.
+
+        **Tip:** para buscar un activo por símbolo de mercado en vez de por ID, combiná el listado con filtrado del lado cliente usando el campo `code`.
+      summary: Obtener detalle de un activo
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+              examples:
+                ActivoActivo:
+                  value:
+                    id: 1
+                    code: BTC
+                    name: Bitcoin
+                    is_active: true
+                  summary: Instrumento habilitado para operar
+                ActivoDesactivado:
+                  value:
+                    id: 5
+                    code: LUNA
+                    name: Terra Luna
+                    is_active: false
+                  summary: Instrumento suspendido — no acepta nuevas operaciones
+          description: Detalle del activo.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetNotFoundResponse'
+          description: El activo con el ID proporcionado no existe.
+  /api/trading/assets/{asset_id}/deactivate/:
+    post:
+      operationId: brokerage_assets_deactivate
+      description: |-
+        Suspende un activo del catálogo, impidiendo que sea usado en nuevas operaciones.
+
+        **Comportamiento:**
+        - Si el activo ya está inactivo (`is_active: false`), la operación es **idempotente**   (retorna `200` con el estado actual sin generar error).
+        - El historial de operaciones previas que referencian este activo se mantiene intacto.
+        - No requiere cuerpo en el request.
+
+        **Caso de uso típico:** suspensión regulatoria de un instrumento, deslistado de un criptoactivo del mercado, o mantenimiento temporal.
+      summary: Desactivar activo
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+              examples:
+                ActivoDesactivado:
+                  value:
+                    id: 5
+                    code: LUNA
+                    name: Terra Luna
+                    is_active: false
+                  summary: Instrumento suspendido — no acepta nuevas operaciones
+          description: Activo desactivado. El campo `is_active` será `false`.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetNotFoundResponse'
+          description: El activo con el ID proporcionado no existe.
+  /api/trading/assets/{asset_id}/reactivate/:
+    post:
+      operationId: brokerage_assets_reactivate
+      description: |-
+        Habilita nuevamente un activo previamente desactivado, permitiendo que sea usado en nuevas operaciones.
+
+        **Comportamiento:**
+        - Si el activo ya está activo (`is_active: true`), la operación es **idempotente**   (retorna `200` con el estado actual sin generar error).
+        - No requiere cuerpo en el request.
+
+        **Caso de uso típico:** reincorporación de un instrumento al mercado tras el levantamiento de una suspensión regulatoria o relistado.
+      summary: Reactivar activo
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+              examples:
+                ActivoActivo:
+                  value:
+                    id: 1
+                    code: BTC
+                    name: Bitcoin
+                    is_active: true
+                  summary: Instrumento habilitado para operar
+          description: Activo reactivado. El campo `is_active` será `true`.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetNotFoundResponse'
+          description: El activo con el ID proporcionado no existe.
+  /api/trading/fiat-currencies/:
+    get:
+      operationId: brokerage_fiat_list
+      description: |-
+        Retorna la lista de monedas fiat de liquidación registradas.
+
+        Pasando `?active=true` se retornan sólo las activas.
+      summary: Listar monedas fiat
+      parameters:
+      - in: query
+        name: active
+        schema:
+          type: string
+          enum:
+          - 'true'
+        description: Filtra sólo monedas fiat activas.
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FiatCurrency'
+              examples:
+                ListaCompleta:
+                  value:
+                  - - id: 1
+                      code: ARS
+                      name: Peso Argentino
+                      is_active: true
+                    - id: 2
+                      code: USD
+                      name: Dólar Estadounidense
+                      is_active: true
+                  summary: Lista completa
+          description: Lista de monedas fiat.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+    post:
+      operationId: brokerage_fiat_create
+      description: |-
+        Registra una nueva moneda fiat de liquidación.
+
+        El `code` (ISO 4217) debe ser único. Se convierte a mayúsculas automáticamente.
+      summary: Registrar moneda fiat
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiatCurrencyCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FiatCurrencyCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FiatCurrencyCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatCurrency'
+              examples:
+                ARSActivo:
+                  value:
+                    id: 1
+                    code: ARS
+                    name: Peso Argentino
+                    is_active: true
+                  summary: ARS activo
+          description: Moneda fiat creada.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+  /api/trading/fiat-currencies/{fiat_id}/:
+    get:
+      operationId: brokerage_fiat_retrieve
+      summary: Obtener detalle de moneda fiat
+      parameters:
+      - in: path
+        name: fiat_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatCurrency'
+              examples:
+                ARSActivo:
+                  value:
+                    id: 1
+                    code: ARS
+                    name: Peso Argentino
+                    is_active: true
+                  summary: ARS activo
+                USDActivo:
+                  value:
+                    id: 2
+                    code: USD
+                    name: Dólar Estadounidense
+                    is_active: true
+                  summary: USD activo
+          description: ''
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatNotFoundResponse'
+          description: La moneda fiat con el ID proporcionado no existe.
+  /api/trading/fiat-currencies/{fiat_id}/deactivate/:
+    post:
+      operationId: brokerage_fiat_deactivate
+      description: Suspende una moneda fiat. Idempotente si ya está inactiva.
+      summary: Desactivar moneda fiat
+      parameters:
+      - in: path
+        name: fiat_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatCurrency'
+          description: Moneda fiat desactivada.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatNotFoundResponse'
+          description: La moneda fiat con el ID proporcionado no existe.
+  /api/trading/fiat-currencies/{fiat_id}/reactivate/:
+    post:
+      operationId: brokerage_fiat_reactivate
+      description: Habilita nuevamente una moneda fiat. Idempotente si ya está activa.
+      summary: Reactivar moneda fiat
+      parameters:
+      - in: path
+        name: fiat_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatCurrency'
+          description: Moneda fiat reactivada.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiatNotFoundResponse'
+          description: La moneda fiat con el ID proporcionado no existe.
+  /api/trading/orders/:
+    get:
+      operationId: brokerage_orders_list
+      description: |-
+        Retorna todas las órdenes registradas, ordenadas por fecha descendente.
+
+        Una **Orden** representa una intención de compra/venta a precio límite antes de ser ejecutada. Una orden puede derivar en cero, una o múltiples Transacciones (ejecución parcial).
+      summary: Listar órdenes
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+          description: Lista de órdenes.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+    post:
+      operationId: brokerage_orders_create
+      description: |-
+        Crea una nueva orden de compra/venta a precio límite.
+
+        **Validaciones:**
+        - El cliente debe estar en estado `ACTIVE`.
+        - El activo debe estar activo (`is_active=true`).
+        - La moneda fiat debe estar activa.
+        - `limit_price` y `quantity` deben ser mayores a cero.
+      summary: Crear orden
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                OrdenDeCompraPendiente:
+                  value:
+                    id: 1
+                    client_id: 3
+                    client_cuit: 20-12345678-9
+                    asset_code: BTC
+                    fiat_currency_code: ARS
+                    transaction_type: BUY
+                    limit_price: '50000000.00000000'
+                    quantity: '0.01000000'
+                    notional: '500000.00000000'
+                    status: PENDING
+                    created_at: '2026-02-20T14:30:00Z'
+                    updated_at: '2026-02-20T14:30:00Z'
+                  summary: Orden de compra pendiente
+          description: Orden creada con estado `PENDING`.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+  /api/trading/orders/{order_id}/:
+    get:
+      operationId: brokerage_orders_retrieve
+      summary: Obtener detalle de una orden
+      parameters:
+      - in: path
+        name: order_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                OrdenDeCompraPendiente:
+                  value:
+                    id: 1
+                    client_id: 3
+                    client_cuit: 20-12345678-9
+                    asset_code: BTC
+                    fiat_currency_code: ARS
+                    transaction_type: BUY
+                    limit_price: '50000000.00000000'
+                    quantity: '0.01000000'
+                    notional: '500000.00000000'
+                    status: PENDING
+                    created_at: '2026-02-20T14:30:00Z'
+                    updated_at: '2026-02-20T14:30:00Z'
+                  summary: Orden de compra pendiente
+          description: ''
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderNotFoundResponse'
+          description: La orden con el ID proporcionado no existe.
+  /api/trading/orders/{order_id}/cancel/:
+    post:
+      operationId: brokerage_orders_cancel
+      description: |-
+        Cancela una orden en estado `PENDING` o `PARTIAL`.
+
+        No se puede cancelar una orden `FILLED` o ya `CANCELLED`.
+      summary: Cancelar orden
+      parameters:
+      - in: path
+        name: order_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: Orden cancelada. El campo `status` será `CANCELLED`.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCancelError'
+          description: La orden no puede cancelarse en su estado actual.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderNotFoundResponse'
+          description: La orden con el ID proporcionado no existe.
+  /api/trading/transactions/:
+    get:
+      operationId: brokerage_transactions_list
+      description: |-
+        Retorna todas las transacciones registradas, ordenadas por fecha descendente.
+
+        Una **Transacción** es un hecho contable ejecutado e **inmutable**. Representa la liquidación real de una operación financiera. El campo `total` (precio unitario × cantidad) se calcula en tiempo real y no está almacenado en la base de datos.
+      summary: Listar transacciones
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+          description: Lista de transacciones.
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+    post:
+      operationId: brokerage_transactions_create
+      description: |-
+        Registra una nueva transacción contable ejecutada.
+
+        **Inmutabilidad:** una vez creada, la transacción no puede modificarse ni eliminarse. Para revertir una operación, crear una nueva transacción de signo contrario.
+
+        **Validaciones:**
+        - El cliente debe estar en estado `ACTIVE`.
+        - `unit_price` y `quantity` deben ser mayores a cero.
+        - `order_id` es opcional (transacciones OTC o directas sin orden previa).
+      summary: Registrar transacción
+      tags:
+      - Trading
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+              examples:
+                CompraDeBTC:
+                  value:
+                    id: 1
+                    client_id: 3
+                    client_cuit: 20-12345678-9
+                    order_id: 1
+                    asset_code: BTC
+                    fiat_currency_code: ARS
+                    transaction_type: BUY
+                    unit_price: '50000000.00000000'
+                    quantity: '0.01000000'
+                    total: '500000.00000000'
+                    status: CONFIRMED
+                    blockchain_hash: null
+                    created_at: '2026-02-20T14:35:00Z'
+                  summary: Compra de BTC
+          description: Transacción registrada con estado `CONFIRMED`.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrokerageValidationErrorResponse'
+          description: |-
+            Datos de entrada inválidos. El cuerpo incluye un objeto con los campos que fallaron y una lista de mensajes descriptivos por campo.
+
+            Ejemplo: `{"cuit": ["Ya existe un cliente con CUIT '20-12345678-9'."]}`
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+  /api/trading/transactions/{tx_id}/:
+    get:
+      operationId: brokerage_transactions_retrieve
+      summary: Obtener detalle de una transacción
+      parameters:
+      - in: path
+        name: tx_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Trading
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+              examples:
+                CompraDeBTC:
+                  value:
+                    id: 1
+                    client_id: 3
+                    client_cuit: 20-12345678-9
+                    order_id: 1
+                    asset_code: BTC
+                    fiat_currency_code: ARS
+                    transaction_type: BUY
+                    unit_price: '50000000.00000000'
+                    quantity: '0.01000000'
+                    total: '500000.00000000'
+                    status: CONFIRMED
+                    blockchain_hash: null
+                    created_at: '2026-02-20T14:35:00Z'
+                  summary: Compra de BTC
+          description: ''
+        '401':
+          description: 'No autenticado. Se requiere JWT válido en el header `Authorization:
+            Bearer <token>`.'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TxNotFoundResponse'
+          description: La transacción con el ID proporcionado no existe.
+components:
+  schemas:
+    AdminCreateUserRequest:
+      type: object
+      description: |-
+        Valida datos para el alta administrativa de un usuario.
+        Role es opcional; si no se provee, el usuario queda sin rol asignado.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        role_id:
+          type: integer
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+      required:
+      - email
+      - first_name
+      - last_name
+      - password
+    AdminPanelResponse:
+      type: object
+      properties:
+        panel:
+          type: string
+          description: Estado del panel.
+      required:
+      - panel
+    AdminUser:
+      type: object
+      description: |-
+        Representación completa de un usuario para endpoints administrativos.
+        Incluye role_name como campo de solo lectura para evitar un join adicional en el frontend.
+        No expone password ni token_version.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          type: integer
+          readOnly: true
+          nullable: true
+          title: Rol
+        role_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última actualización
+      required:
+      - created_at
+      - email
+      - first_name
+      - full_name
+      - id
+      - is_active
+      - last_name
+      - role
+      - role_name
+      - updated_at
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+        name:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - code
+      - id
+      - is_active
+      - name
+    AssetCreateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 20
+        name:
+          type: string
+          default: ''
+          maxLength: 100
+      required:
+      - code
+    AssetNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: Activo no encontrado.
+    AuditBadFilterResponse:
+      type: object
+      properties:
+        status:
+          type: array
+          items:
+            type: string
+          default:
+          - Seleccione una opción válida. "INVALID" no está disponible.
+        user_id:
+          type: array
+          items:
+            type: string
+          default:
+          - Introduzca un número entero válido.
+    AuditForbiddenResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          default: 'Permiso denegado. Se requiere: ''auditoria.view''.'
+    AuditLog:
+      type: object
+      description: |-
+        Serializer de lectura para AuditLog.
+
+        El campo `user` muestra id + email en lugar del PK crudo.
+        El campo `status_display` expone la etiqueta legible del choice.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/AuditLogUser'
+          readOnly: true
+        action:
+          type: string
+          readOnly: true
+          title: Acción
+          description: 'Identificador de la acción. Convención: "<recurso>.<verbo>"
+            — ej: "user.created".'
+        resource:
+          type: string
+          readOnly: true
+          title: Recurso
+          description: 'Tipo de recurso afectado. Ej: "user", "payment", "report".'
+        resource_id:
+          type: string
+          readOnly: true
+          title: ID del recurso
+          description: Identificador del recurso específico afectado (opcional).
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AuditLogStatusEnum'
+          readOnly: true
+          title: Estado
+        status_display:
+          type: string
+          readOnly: true
+        metadata:
+          readOnly: true
+          description: 'Contexto adicional en formato JSON. NUNCA incluir datos sensibles:
+            passwords, tokens, claves privadas.'
+        ip_address:
+          type: string
+          readOnly: true
+          nullable: true
+          title: Dirección IP
+          description: IP de origen de la solicitud.
+        user_agent:
+          type: string
+          readOnly: true
+          description: Identificación del cliente HTTP.
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Fecha y hora UTC de creación. Inmutable.
+        correlation_id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: UUID que correlaciona múltiples eventos de una misma operación.
+            Útil para trazabilidad en arquitecturas orientadas a eventos.
+      required:
+      - action
+      - correlation_id
+      - id
+      - ip_address
+      - metadata
+      - resource
+      - resource_id
+      - status
+      - status_display
+      - timestamp
+      - user
+      - user_agent
+    AuditLogStatusEnum:
+      enum:
+      - SUCCESS
+      - FAILURE
+      type: string
+      description: |-
+        * `SUCCESS` - Exitoso
+        * `FAILURE` - Fallido
+    AuditLogUser:
+      type: object
+      description: Representación mínima del usuario asociado al log.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+      required:
+      - email
+      - id
+    AuditNotFoundResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          default: No encontrado.
+    AuthTokenResponse:
+      type: object
+      properties:
+        access:
+          type: string
+          description: 'JWT access token. Válido por 10 minutos. Incluirlo en el header:
+            Authorization: Bearer <token>'
+        refresh:
+          type: string
+          description: JWT refresh token. Válido por 7 días. Usarlo en /api/auth/refresh/
+            para obtener un nuevo access token.
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+      - access
+      - refresh
+      - user
+    BrokerageValidationErrorResponse:
+      type: object
+      properties:
+        cuit:
+          type: array
+          items:
+            type: string
+        name:
+          type: array
+          items:
+            type: string
+        code:
+          type: array
+          items:
+            type: string
+    ChangePasswordRequest:
+      type: object
+      description: Serializer for changing user password
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - new_password
+      - new_password_confirm
+      - old_password
+    Client:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        cuit:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/ClientStatusEnum'
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - cuit
+      - email
+      - id
+      - is_active
+      - name
+      - status
+    ClientCreateRequest:
+      type: object
+      properties:
+        cuit:
+          type: string
+          minLength: 1
+          maxLength: 13
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          default: ''
+      required:
+      - cuit
+      - name
+    ClientNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: Cliente no encontrado.
+    ClientStatusEnum:
+      enum:
+      - ACTIVE
+      - BLOCKED
+      type: string
+      description: |-
+        * `ACTIVE` - Activo
+        * `BLOCKED` - Bloqueado
+    ConciliacionListResponse:
+      type: object
+      properties:
+        conciliaciones:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: Lista de registros de conciliación.
+      required:
+      - conciliaciones
+    ConciliacionRunResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Estado del proceso iniciado.
+      required:
+      - status
+    DashboardResponse:
+      type: object
+      properties:
+        widgets:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: Lista de widgets del dashboard.
+      required:
+      - widgets
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Descripción del error.
+      required:
+      - error
+    FiatCurrency:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+        name:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - code
+      - id
+      - is_active
+      - name
+    FiatCurrencyCreateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 10
+        name:
+          type: string
+          default: ''
+          maxLength: 50
+      required:
+      - code
+    FiatNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: Moneda fiat no encontrada.
+    LoginRequest:
+      type: object
+      description: Serializer for user login with email/password
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    LogoutRequestRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+          description: El refresh token JWT que se desea invalidar.
+      required:
+      - refresh
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Mensaje de confirmación.
+      required:
+      - message
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        client_id:
+          type: integer
+          readOnly: true
+        client_cuit:
+          type: string
+          readOnly: true
+        asset_code:
+          type: string
+          readOnly: true
+        fiat_currency_code:
+          type: string
+          readOnly: true
+        transaction_type:
+          type: string
+        limit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        notional:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,22}(?:\.\d{0,8})?$
+          readOnly: true
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - asset_code
+      - client_cuit
+      - client_id
+      - created_at
+      - fiat_currency_code
+      - id
+      - limit_price
+      - notional
+      - quantity
+      - status
+      - transaction_type
+      - updated_at
+    OrderCancelError:
+      type: object
+      properties:
+        status:
+          type: array
+          items:
+            type: string
+      required:
+      - status
+    OrderCreateRequest:
+      type: object
+      properties:
+        client_id:
+          type: integer
+        asset_id:
+          type: integer
+        fiat_currency_id:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        limit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+      required:
+      - asset_id
+      - client_id
+      - fiat_currency_id
+      - limit_price
+      - quantity
+      - transaction_type
+    OrderNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: Orden no encontrada.
+    PatchedAdminUpdateUserRequest:
+      type: object
+      description: |-
+        Valida datos para la edición administrativa de un usuario.
+        Todos los campos son opcionales (semántica PATCH).
+        Para cambiar is_active usar el endpoint dedicado /deactivate/.
+        Para cambiar password usar el endpoint dedicado /reset-password/.
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        role_id:
+          type: integer
+          nullable: true
+    PatchedClientUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+    PatchedProfilePatchRequestRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          description: Nombre del usuario (opcional).
+        last_name:
+          type: string
+          minLength: 1
+          description: Apellido del usuario (opcional).
+    ProfileUpdateRequestRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          description: Nombre del usuario.
+        last_name:
+          type: string
+          minLength: 1
+          description: Apellido del usuario.
+      required:
+      - first_name
+      - last_name
+    RegisterRequest:
+      type: object
+      description: Serializer for user registration
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - first_name
+      - last_name
+      - password
+      - password_confirm
+    ResetPasswordResponse:
+      type: object
+      properties:
+        temp_password:
+          type: string
+          description: Contraseña temporal generada. Válida para el próximo login.
+        user:
+          $ref: '#/components/schemas/AdminUser'
+      required:
+      - temp_password
+      - user
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        client_id:
+          type: integer
+          readOnly: true
+        client_cuit:
+          type: string
+          readOnly: true
+        order_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        asset_code:
+          type: string
+          readOnly: true
+        fiat_currency_code:
+          type: string
+          readOnly: true
+        transaction_type:
+          type: string
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,22}(?:\.\d{0,8})?$
+          readOnly: true
+        status:
+          type: string
+        blockchain_hash:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - asset_code
+      - blockchain_hash
+      - client_cuit
+      - client_id
+      - created_at
+      - fiat_currency_code
+      - id
+      - order_id
+      - quantity
+      - status
+      - total
+      - transaction_type
+      - unit_price
+    TransactionCreateRequest:
+      type: object
+      properties:
+        client_id:
+          type: integer
+        asset_id:
+          type: integer
+        fiat_currency_id:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,8})?$
+        order_id:
+          type: integer
+          nullable: true
+        blockchain_hash:
+          type: string
+          nullable: true
+          maxLength: 255
+      required:
+      - asset_id
+      - client_id
+      - fiat_currency_id
+      - quantity
+      - transaction_type
+      - unit_price
+    TransactionTypeEnum:
+      enum:
+      - BUY
+      - SELL
+      type: string
+      description: |-
+        * `BUY` - Compra
+        * `SELL` - Venta
+    TxNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: Transacción no encontrada.
+    User:
+      type: object
+      description: Serializer for User model - read-only representation
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última actualización
+      required:
+      - created_at
+      - email
+      - full_name
+      - id
+      - is_active
+      - updated_at
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Autenticación
+  description: Registro, login, logout y renovación de tokens JWT.
+- name: Perfil
+  description: Ver y editar el perfil del usuario autenticado. Cambio de contraseña.
+- name: Usuarios
+  description: |-
+    Gestión administrativa de cuentas: listar, crear, editar, desactivar y resetear contraseña.
+
+    | Permiso requerido | Operación |
+    |-------------------|-----------|
+    | `usuarios.view` | Listar / Ver |
+    | `usuarios.create` | Crear |
+    | `usuarios.edit` | Editar / Reset contraseña |
+    | `usuarios.delete` | Desactivar |
+- name: Auditoría
+  description: |-
+    Consulta del historial inmutable de eventos del sistema.
+
+    Requiere permiso `auditoria.view` (rol Administrador).

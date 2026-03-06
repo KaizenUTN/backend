@@ -25,31 +25,32 @@ $ComposeFile = "docker-compose.dev.yaml"
 switch ($Mode) {
     "down" {
         Write-Host "[DEV] Stopping environment..." -ForegroundColor Yellow
-        docker-compose -f $ComposeFile down
+        docker compose -f $ComposeFile down
     }
     "bg" {
         Write-Host "[DEV] Building and starting in background..." -ForegroundColor Cyan
-        docker-compose -f $ComposeFile up --build -d
+        docker compose -f $ComposeFile up --build -d
         Write-Host ""
         Write-Host "[DEV] Done. Useful commands:" -ForegroundColor Green
-        Write-Host "  Logs:      docker-compose -f $ComposeFile logs -f"
+        Write-Host "  Logs:      docker compose -f $ComposeFile logs -f"
         Write-Host "  Stop:      .\scripts\host\dev.ps1 -Mode down"
         Write-Host "  Shell:     .\scripts\host\dev.ps1 -Mode shell"
         Write-Host "  Migrate:   .\scripts\host\dev.ps1 -Mode migrate"
     }
     "migrate" {
         Write-Host "[DEV] Generating and applying migrations..." -ForegroundColor Cyan
-        docker-compose -f $ComposeFile exec web python manage.py makemigrations
-        docker-compose -f $ComposeFile exec web python manage.py migrate
+        docker compose -f $ComposeFile exec web python manage.py makemigrations
+        docker compose -f $ComposeFile exec web python manage.py migrate
         Write-Host ""
         Write-Host "[DEV] Done. Commit the generated migration files!" -ForegroundColor Green
     }
     "shell" {
         Write-Host "[DEV] Opening shell in container..." -ForegroundColor Cyan
-        docker-compose -f $ComposeFile exec web bash
+        docker compose -f $ComposeFile exec web bash
     }
     default {
         Write-Host "[DEV] Building and starting (foreground)..." -ForegroundColor Cyan
-        docker-compose -f $ComposeFile up --build
+        docker compose -f $ComposeFile up --build -d
+        docker compose -f $ComposeFile logs -f
     }
 }

@@ -237,3 +237,5 @@ postman/
 !docs/product-overview.md
 
 contexto/*
+
+apps/playground/*
